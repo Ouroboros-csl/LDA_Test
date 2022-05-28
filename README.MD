@@ -15,6 +15,10 @@ $TF-IDF_{\ t_i} = TF_{\ t_i} \* IDF_{\ t_i}$
 
 使用前Textminer.ipynb会清除pdf_text_folder当中所有文件
 
+1. `conda activate your_env`切换虚拟环境
+2. `pip install -r requirements.txt`
+3. 运行jupyter文件
+
 ## 文件夹结构
 ```
 |-Textminer.ipynb(文本挖掘程序)
