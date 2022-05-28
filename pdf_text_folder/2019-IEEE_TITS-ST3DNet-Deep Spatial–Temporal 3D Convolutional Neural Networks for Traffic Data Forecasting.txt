@@ -1,0 +1,1880 @@
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS, VOL. 20, NO. 10, OCTOBER 2019
+
+3913
+
+Deep Spatial–Temporal 3D Convolutional Neural
+Networks for Trafﬁc Data Forecasting
+
+Shengnan Guo, Youfang Lin, Shijie Li, Zhaoming Chen, and Huaiyu Wan
+
+Abstract— Reliable trafﬁc prediction is critical to improve
+safety, stability, and efﬁciency of intelligent transportation sys-
+tems. However, trafﬁc prediction is a very challenging problem
+because trafﬁc data are a typical type of spatio-temporal data,
+which simultaneously shows correlation and heterogeneity both
+in space and time. Most existing works can only capture the
+partial properties of trafﬁc data and even assume that the effect of
+correlation on trafﬁc prediction is globally invariable, resulting in
+inadequate modeling and unsatisfactory prediction performance.
+In this paper, we propose a novel end-to-end deep learning model,
+called ST-3DNet, for trafﬁc raster data prediction. ST-3DNet
+introduces 3D convolutions to automatically capture the corre-
+lations of trafﬁc data in both spatial and temporal dimensions.
+A novel recalibration (Rc) block is proposed to explicitly quantify
+the difference of the contributions of the correlations in space.
+Considering two kinds of temporal properties of trafﬁc data,
+i.e., local patterns and long-term patterns, ST-3DNet employs
+two components consisting of 3D convolutions and Rc blocks to,
+respectively, model the two kinds of patterns and then aggregates
+them together in a weighted way for the ﬁnal prediction. The
+experiments on several real-world trafﬁc datasets, viz., trafﬁc
+congestion data and crowd ﬂows data, demonstrate that our ST-
+3DNet outperforms the state-of-the-art baselines.
+
+Index Terms— Trafﬁc prediction, spatial–temporal data, neural
+
+networks, 3D convolutions, recalibration block.
+
+I. INTRODUCTION
+
+I N MODERN Intelligent Transportation Systems (ITS) [1]
+
+and Advanced Traveler Information Systems (ATIS), trafﬁc
+prediction is regarded as an indispensable part to provide
+accurate and reliable trafﬁc information for travelers and trafﬁc
+agencies [2], [3]. Knowing trafﬁc information (e.g.,
+trafﬁc
+congestion conditions, trafﬁc volumes and crowd ﬂows) in
+advance, authorities can carry out better trafﬁc management
+strategies and travelers can make better routing plans. There-
+fore, accurate trafﬁc forecasting helps to reduce the amount of
+time cost, economic losses and carbon emission.
+
+The goal of trafﬁc prediction is to provide future trafﬁc
+information in advance based on historical trafﬁc measure-
+ments in order to help people make better travel decisions.
+
+Manuscript received June 15, 2018; revised January 8, 2019; accepted
+February 21, 2019. Date of publication April 9, 2019; date of current version
+October 2, 2019. This work was supported by the National Natural Science
+Foundation of China under Grant 61603028. The Associate Editor for this
+paper was Y. Lv. (Corresponding author: Huaiyu Wan.)
+
+The authors are with the Beijing Key Laboratory of Trafﬁc Data Analy-
+sis and Mining, School of Computer and Information Technology, Beijing
+Jiaotong University, Beijing 100044, China, and the Key Laboratory of
+Intelligent Passenger Service of Civil Aviation, CAAC, Beijing, 101318,
+China (e-mail: guoshn@bjtu.edu.cn; yﬂin@bjtu.edu.cn; shijieli@bjtu.edu.cn;
+zhaomingchen@bjtu.edu.cn; hywan@bjtu.edu.cn).
+
+Digital Object Identiﬁer 10.1109/TITS.2019.2906365
+
+However, accurate trafﬁc prediction in the real world is very
+challenging, affected by the following complex factors:
+
+• Spatial correlation: In trafﬁc domain, the observations
+gained at nearby locations are correlated with each other,
+leading to local coherence in space.
+
+• Temporal correlation: Observations at the adjacent time
+intervals are highly relevant. For example, a trafﬁc con-
+gestion taking place during the evening rush hour at
+around 17:00 p.m. will probably last to 19:00 p.m.
+
+• Heterogeneity: Trafﬁc data show heterogeneity both in
+space and time, i.e., the contributions of the correlations
+are not globally the same. For one instance, owing to
+the variation of the functions and the actual geographical
+relationships of different locations, the inﬂuences of their
+neighborhood are not invariable. For another instance,
+trafﬁc data show cyclical patterns due to the effect of
+human daily routine. Even the strength of temporal peri-
+odicity also varies with regions, due to different regional
+functions.
+
+Actually, over the last few decades, many attempts have
+been done to make more accurate trafﬁc forecasting. Trafﬁc
+forecasting methodology can be generally classiﬁed into two
+major categories: model-driven approaches and data-driven
+approaches. Model-driven approaches are also known as para-
+metric approaches, like time series models, which are prede-
+termined based on strong theoretical assumptions. However,
+the assumptions are hardly satisﬁed in practice, which limits
+their forecasting performance. Recently, the deployment of
+tremendous trafﬁc sensors such as in-ground loop detectors
+and GPS devices, makes us easy to get a huge amount of
+real-time trafﬁc data. This provides a good opportunity to
+deep understand trafﬁc data through data-driven approaches.
+Data-driven methods can be divided into two subcategories:
+traditional machine learning methods and deep learning based
+methods. Traditional machine learning methods lack the abil-
+ity of dealing with high-dimensional data and can hardly
+describe the complex and non-linear changes in trafﬁc data.
+Besides, the forecasting performance of traditional machine
+learning heavily relies on the handcrafted features which
+are highly problem-dependent and rely on expert experience.
+Hence, this kind of methods has weak generality. Fortunately,
+the emerging of deep learning theory makes it possible to
+effectively model high-dimensional spatio-temporal data and
+to automatically discover intricate features through hierar-
+chical representations [4]. Inspired by this, many researchers
+begin to turn to deep learning based models to deal with
+
+1524-9050 © 2019 IEEE. Personal use is permitted, but republication/redistribution requires IEEE permission.
+See http://www.ieee.org/publications_standards/publications/rights/index.html for more information.
+
+3914
+
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS, VOL. 20, NO. 10, OCTOBER 2019
+
+high-dimensional spatial-temporal trafﬁc data. For instance,
+convolutional neural networks are adopted to explore spatial
+features of trafﬁc data; recurrent neural networks are employed
+for modeling sequential
+information in trafﬁc data. How-
+ever, the features from both spatial and temporal dimensions,
+i.e., the motion information encoded in multiple inputs from
+contiguous time intervals, are not well considered. Further-
+more, besides extracting spatio-temporal correlation in trafﬁc
+data, taking the heterogeneity of the correlations’ contribu-
+tion into account is also crucial in modeling spatio-temporal
+trafﬁc data, while it is often ignored in most of the existing
+methods [5].
+
+To tackle the aforementioned challenges, we propose a
+deep learning based spatio-temporal trafﬁc forecasting net-
+work, named ST-3DNet, to predict future trafﬁc data. The
+contributions of our study are four-fold:
+
+• We introduce 3D convolutions into trafﬁc prediction
+domain. ST-3DNet adopts 3D convolutions and residual
+units to effectively extract features from both spatial and
+temporal dimensions.
+
+• A novel architectural unit termed as “Recalibration” (Rc)
+block is proposed to explicitly describe the difference of
+the contributions of the spatio-temporal correlations in
+space.
+
+• We consider two temporal properties of trafﬁc data,
+i.e., local temporal patterns and long-term temporal pat-
+terns, and respectively design two components to model
+them and then aggregate their outputs in a weighted way.
+• Extensive experiments are carried out on three real-world
+trafﬁc datasets. The experimental results verify the state-
+of-the-art performance of our model on different trafﬁc
+prediction tasks.
+
+II. LITERATURE REVIEW
+
+A. Trafﬁc Prediction
+
+Trafﬁc prediction is regarded as a fundamental module in
+ITS, helping to improve trafﬁc management. Over the past
+few decades, trafﬁc prediction has attracted wide attentions
+from researchers. In general, trafﬁc prediction methods fall
+into three major categories:
+time-series analysis methods,
+traditional machine learning methods and deep learning based
+methods.
+
+In time-series analysis methods, ARIMA was used
+for
+short-term trafﬁc ﬂow prediction [6]. Afterwards,
+KARIMA [7], SARIMA [8] were proposed to further
+improve trafﬁc forecasting performance. However, the time-
+series analysis models are predetermined according to some
+ideal assumptions, while in the real world, trafﬁc data is too
+complicated to satisfy the assumptions. So the time-series
+analysis methods usually perform poorly in practice.
+
+Compared with the above methods, data-driven methods
+provide more ﬂexible alternatives for trafﬁc forecasting [9].
+For example, SVM [10] and SVR [11] were applied to predict
+trafﬁc data by mapping low-dimensional nonlinear trafﬁc
+data into high-dimensional space through a kernel function.
+And the key of these models is the choice of the ker-
+nel function, which greatly affects forecasting performance.
+
+Besides, Bayesian approaches [12], [13] and KNN [14], [15]
+were also employed for trafﬁc prediction. Although traditional
+machine learning methods have solid mathematical founda-
+tions and can help us to understand the mechanisms of data
+generation, they fail to make accurate predictions when dealing
+with complex and highly nonlinear data [16] and need careful
+feature engineering.
+
+In recent years, deep learning models with remarkable
+ability of handling multi-dimensional and nonlinear data
+inspire more and more researchers to apply them to trafﬁc
+data mining. Deep belief networks (DBN) [17] and stacked
+autoencoder models [18], [19] were used to automatically
+learn the features of trafﬁc ﬂow. But they only deal with a
+single region every time. In fact, trafﬁc measurements from
+nearby or even distant regions have spatial and temporal
+correlation, so predicting future trafﬁc data only based on
+information from local region is far from enough. Convo-
+lution neural networks (CNNs) as a classical type of deep
+neural networks have achieved numerous breakthroughs in the
+ﬁeld of computer vision [4]. Since CNNs can automatically
+and hierarchically capture the spatial structural information
+by convolution operations [20], researchers applied them to
+trafﬁc data prediction. To address the crowd ﬂows predic-
+tion issue, Zhang et al. [21] proposed a ST-ResNet, which
+consists of convolution layers and residual units to model
+citywide spatial dependencies. While as for temporal features,
+ST-ResNet simply treats information in adjacent time inter-
+vals as multiple channels, so right after the ﬁrst convolution
+layer, ST-ResNet
+loses temporal information of the input.
+Recurrent neural networks (RNNs) as another classical type
+of deep neural networks are good at modeling temporal
+information. However, vanilla RNNs suffer from the vanish-
+ing gradient problem which makes it difﬁcult for RNNs to
+remember long-term information. In order to learn temporal
+dependencies over a long-range time span, long short term
+memory neural networks (LSTMs) [22] and gated recurrent
+unit networks (GRUs) [23] are developed. Ma et al. [2]
+and Zhao et al. [24] employed LSTM-based networks to
+predict short-term trafﬁc speed and trafﬁc ﬂow. However,
+these models can not capture spatial features automatically and
+the spatial information must be encoded into input manually.
+In order to settle spatio-temporal sequence forecasting prob-
+lems, novel convolutional LSTM networks (ConvLSTMs) [25]
+were proposed. However, because of their complex architec-
+tures, training becomes more difﬁcult when the networks’
+depths increase, which limits their depths and capabilities
+of capturing wide-range spatio-temporal correlation. In addi-
+tion, these LSTM-based networks cannot efﬁciently capture
+long-range temporal correlation, such as the periodic and
+trend patterns in trafﬁc data, which is extremely essential in
+long-term forecasting.
+
+The development of trafﬁc prediction methods has been
+motivated by the requirement of simultaneously taking both
+spatial and temporal correlations of trafﬁc data into account.
+But until now, the features from both spatial and temporal
+dimensions have not been adequately described. Furthermore,
+correlations in trafﬁc data are heterogeneous in time and space.
+Thus, correctly identifying and quantifying the strength of
+
+GUO et al.: DEEP SPATIAL–TEMPORAL 3D CONVOLUTIONAL NEURAL NETWORKS
+
+3915
+
+Fig. 2. Convolutions applied on multiple frames.
+
+a 2D convolution operation, multiple frames are compressed
+into only one feature map and the temporal information is
+missing. While a 3D convolution operation is to convolve a
+3D ﬁlter on a cube generated by stacking multiple contiguous
+frames, as illustrated in Fig. 1(b) and Fig. 2(c). This can
+effectively capture motion information because one feature
+map is connected to multiple contiguous frames in the previous
+layer. Compared to a 2D convolution, applying a 3D convo-
+lution still can generate a video volume, which preserves the
+temporal information. As shown in Fig. 2(c), a 3D convolution
+that convolves a 3D ﬁlter on a cube consisting of multiple
+contiguous frames can generate a feature map which is also a
+cube.
+
+Trafﬁc data at each time interval can be analogized as a
+video’s frame. Therefore, motivated by the success of 3D
+CNNs in video analysis, in this paper we ﬁrstly apply 3D
+convolution in the ﬁeld of trafﬁc prediction, aiming at auto-
+matically modeling spatio-temporal information encoded in
+trafﬁc data. A novel network structure named spatio-temporal
+3D network (ST-3DNet) is proposed to predict spatio-temporal
+trafﬁc data.
+
+III. METHODOLOGY
+
+In this section, we ﬁrst give the deﬁnitions of relevant
+concepts involved in our paper, and then describe our proposed
+model.
+
+A. Spatio-Temporal Trafﬁc Raster Data
+
+There are many types of spatio-temporal (ST) data in
+the real world. Atluri et al. [33] divided ST data into four
+categories, including event data, trajectory data, point refer-
+ence data and raster data. Among them, raster data refers to
+observations of a continuous ST ﬁeld, which is collected at
+ﬁxed locations in space and ﬁxed points in time. ST raster data
+is quite common in real-world applications in trafﬁc domain.
+In this study, we focus on trafﬁc data which is in the form of
+raster data.
+
+Deﬁnition 1 (Trafﬁc Raster Data): In trafﬁc raster data,
+trafﬁc observations are recorded at ﬁxed intervals in time and
+
+Fig. 1. The difference between (a) 2D and (b) 3D convolutions.
+
+correlations is necessary in modeling trafﬁc data [5]. However,
+this is often ignored in most existing methods. Actually,
+most current models assume that the spatial and temporal
+correlations in trafﬁc data can be described by globally ﬁxed
+parameters. For instance, in STARIMA [26], the orders of
+AR and MA are ﬁxed globally both spatially and temporally,
+which violates the heterogeneity of trafﬁc data. As another
+example, although ST-ResNet beneﬁts from shared convolu-
+tion operations to extract spatial features, it still performs
+it
+convolution operations on the top layer,
+considers the effects of channel-wise features in different
+regions are the same. Yue and Yeh [27] pointed out in order to
+capture the heterogeneity, related studies can be divided into
+two categories: those aiming at learning the effective range
+of correlations [5], [28], and those aiming at capturing the
+strength of correlations [29], [30].
+
+implying that
+
+B. 3D Convolution Neural Networks
+
+How to effectively learn the spatio-temporal information
+without relying on handcrafted features is also a key concern
+in video analysis. Tran et al. [31] and Ji et al. [32] developed
+3-dimensional convolutional neural networks (3D CNNs) to
+learn the spatio-temporal features and they found 3D convolu-
+tions are more effective for capturing spatio-temporal features
+compared to 2D convolutions. Fig. 1 shows a comparison
+of 2D and 3D convolutions. In Fig. 1(a), a 2D convolution
+performed at a convolutional layer can only extract features
+in spatial dimensions from local neighborhood in the previous
+layer and result in one feature map. When a 2D convolution is
+applied on a video volume, multiple contiguous frames should
+be treated as multiple channels, as shown in Fig. 2(b). So after
+
+3916
+
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS, VOL. 20, NO. 10, OCTOBER 2019
+
+Fig. 3. Trafﬁc raster data.
+
+at ﬁxed locations in space. As shown in Fig. 3(a), consider a
+set of ﬁxed locations S = {si j }, distributed regularly in space
+with constant distance between adjacent locations, which are
+like pixels in an image. For every location (i, j ), observations
+{x c,i, j
+} are recorded at a ﬁxed set of time intervals T = {τt },
+t
+which are regularly spaced with equal delays between con-
+secutive measurements (see Fig. 3(b)). x c,i, j
+∈ R represents
+the c-th kind of trafﬁc measurement in location (i, j ) at time
+interval t. Thus, at time interval t, observations in all I × J
+locations can be denoted as a tensor Xt ∈ RC×I ×J , where
+(Xt )c,i, j = x c,i, j
+
+.
+
+t
+
+t
+
+Many trafﬁc measurements can be represented in raster data.
+For example, a city can be partitioned into an I × J grid map
+according to the longitude and latitude, where a grid denotes a
+ﬁxed region. When we study the trafﬁc congestion prediction
+problem, let c ∈ {0} and x 0,i, j
+present the trafﬁc congestion
+condition at time interval t in region (i, j ); when we study the
+problem of crowd ﬂows prediction, let c ∈ {0, 1} and x 0,i, j
+and x 1,i, j
+respectively be the inﬂow and outﬂow of the crowds
+t
+at time interval t in region (i, j ).
+
+t
+
+t
+
+B. Problem Deﬁnition
+
+Problem 1 (Trafﬁc Raster Data Prediction): Given the
+historical ST trafﬁc raster data {Xt |t = 0, . . . , n}, the goal
+is to predict Xn+(cid:3)t at time interval (n + (cid:3)t), where n is the
+index of the last observed time interval and (cid:3)t is the length of
+time intervals between the last observed one and the predicted
+one.
+
+C. Deep Spatio-Temporal 3D Convolutional
+Neural Network (ST-3DNet)
+
+To solve the problem of spatio-temporal trafﬁc prediction,
+we propose an end-to-end deep learning based model, named
+ST-3DNet. Fig. 4 displays its overall architecture, which
+consists of two major components respectively designed to
+describe two kinds of temporal properties of trafﬁc data,
+i.e., closeness and weekly period. Closeness refers to the local
+temporal patterns in trafﬁc data. Obviously, current trafﬁc
+data is closely related to the recent historical data. Weekly
+period refers to the periodic and trend patterns in trafﬁc data.
+For example, Fig. 5 shows the trafﬁc conditions of a region
+in Beijing in two weeks. In Fig. 5, the periodic patterns in
+trafﬁc data can be easily noticed, e.g., the repeated Monday
+
+Fig. 4. ST-3DNet architecture. 3D Conv: 3D Convolution; ResUnit: Residual
+Unit; Rc: Recalibration block.
+
+Fig. 5. Weekly periodicity of a road link in Beijing.
+
+morning rush hours. Besides, with the change of seasons,
+trafﬁc data shows some trend patterns, e.g., when winter
+comes, the morning rush hours will become later. Trafﬁc data
+in each region has both the two temporal properties. However,
+the inﬂuence of the two temporal properties on each region
+are various, e.g., some working areas show obvious periodic
+patterns, while some entertainment places do not.
+
+is
+
+its input
+
+The aim of
+
+, Xt −(dc−1), . . . , Xt −1
+
+to capture
+the closeness component
+spatio-temporal features based on the recent historical data.
+Hence,
+is a subsequence of ST raster data in
+(0)
+c =
+the recent time segment. Let the subsequence be X
+(cid:3)
+(cid:2)
+∈ RC×I ×J ×dc , where dc is the
+Xt −dc
+length of the closeness dependent sequence. The closeness
+component ﬁrst stacks 3D convolution layers and 2D residual
+units to capture spatio-temporal features of trafﬁc data and
+then uses a Rc block to identify and quantify the contribution
+of features for each region. On the left part of Fig. 4,
+
+GUO et al.: DEEP SPATIAL–TEMPORAL 3D CONVOLUTIONAL NEURAL NETWORKS
+
+3917
+
+Fig. 6. An example of Trafﬁc congestion propagation.
+
+(cid:3)
+
+(cid:2)
+
+(0)
+w =
+
+Xt −dw· pweek
+
+, . . . , Xt − pweek
+
+, Xt −(dw−1)· pweek
+
+the weekly period component aims to describe the periodic
+and trend patterns in trafﬁc data. Its input is a subsequence of
+ST raster data in the last few weeks, which has the same week
+attributes as the forecasting target. Deﬁne the subsequence
+∈
+as X
+RC×I ×J ×dw , where the period pweek is ﬁxed to one week
+and dw is the length of the weekly period dependent sequence.
+The weekly period component uses 3D convolutions to capture
+temporal patterns and a Rc block to select informative features
+and to suppress useless features for each region. On the top
+of ST-3DNet, the outputs of the two components are merged
+as X f based on parameter matrices, which are learnable to
+reﬂect the difference of the contributions of the two temporal
+properties in space. Finally, X f
+is followed by an activation
+function.
+
+1) Structure of the Closeness Component: The closeness
+component consists of three sub-components, including 3D
+convolutions, 2D residual units and a recalibration block,
+as shown in Fig. 4.
+
+In spatio-temporal
+
+a) 3D Convolution:
+
+trafﬁc data,
+the observations gained at nearby locations and adjacent
+time intervals are not independent but are correlated with
+each other. Taking trafﬁc congestion condition for example,
+we can often observe that a trafﬁc congestion usually covers
+a continuous area. This kind of purely spatial correlation can
+be captured by 2D Convolutions [4]. However, as time goes
+on, the congestion may propagate to other distant regions.
+As shown in Fig. 6, during the morning rush hours, many
+people were going to the core commercial area located in
+the northeast of the city. Suppose at time t, three congestions
+occurred respectively at link A, B and C, and most of the
+vehicles on these three links were driving towards the north-
+east, then the congestions would also propagate towards the
+northeast. In this case, only modeling the spatial features is far
+from enough. In ST trafﬁc data analysis, it is critical to capture
+the motion information encoded in multiple contiguous snap-
+shots. Fortunately, it has been proved that 3D Convolutions
+performed in video analysis problems can effectively capture
+the motion information [32] from both spatial and temporal
+dimensions.
+
+Fig. 7. The architecture of the 2D residual unit.
+
+Motivated by this, in the closeness component we ﬁrst stack
+Lc 3D convolution layers (i.e., 3D Conv shown in Fig. 4).
+Formally,
+
+X (l)
+c
+
+= f (W (l)
+c
+
+∗ X (l−1)
+c
+
++ b(l)
+c
+
+),
+
+l = 1, . . . , Lc
+
+(1)
+
+(l−1)
+c
+
+and b
+
+∈
+where * denotes the operation of 3D convolution. X
+RCl−1×I ×J ×Tl−1 is the input of the lt h 3D convolution layer and
+Cl−1 is the number of the channels. When l = 1, C0 = C and
+(l)
+T0 = dc. W
+is an activation
+c
+function. By convolving 3D ﬁlters to the cube formed by
+multiple contiguous ST raster data, the feature maps in the
+3D convolution layers are connected to multiple contiguous
+raster data in the previous layer, thereby to extract the motion
+information.
+
+are parameters and f
+
+(l)
+c
+
+b) Residual Unit: After 3D convolution operations, tem-
+poral information have been fully explored. So afterwards,
+we continue to perform 2D convolutions to further explore
+spatial information. One convolution layer can only capture
+local spatial correlation, so multiple consecutive convolution
+layers are required to capture distant spatial dependencies.
+However, it is more difﬁcult to train deeper neural networks.
+To overcome this problem and make deep neural networks
+more easily to be optimized, the residual learning proposed by
+He et al. [34] is used in our model. In our work, the residual
+mapping consists of the combination of activation and 2D
+convolution twice, as shown in Fig. 7. The residual mapping
+is denoted as F . And we stack Lr residual units on the last
+3D convolution layer. Formally,
+
+X
+
+(Lc+l)
+c
+
+= X
+
+(Lc+l−1)
+c
+
++ F (X
+
+(Lc+l−1)
+c
+
+; θ (l)
+c
+
+),
+
+l = 1, . . . , Lr
+
+(2)
+
+∈ RC 
+
+(Lc+l−1)
+c
+
+where θ (l)
+c
+lt h residual unit. X
+lt h residual unit and C 
+When l = 1, in order to perform 2D convolution on X
+RCLc
+C 
+Lc
+
+is the set of all the learnable parameters in the
+×I ×J is the input to the
+Lc+l−1
+Lc+l−1 is the number of the channels.
+(Lc)
+∈
+c
+×I ×J , where
+
+×I ×J ×TLc , X
+= CLc TLc .
+
+is reshaped to X
+
+∈ RC 
+Lc
+
+(Lc)
+c
+
+(Lc)
+c
+
+3918
+
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS, VOL. 20, NO. 10, OCTOBER 2019
+
+Fig. 8. Different effects of the same feature on different road links.
+
+As our task is to predict future value of every grid in ST
+trafﬁc raster data, ST-3DNet does not use any subsampling
+and pooling operations in the spatial dimension. Because these
+operations will reduce the tensor size and make networks less
+sensitive to the spatial features [35].
+
+c) Recalibration Block:
+
+It should be noticed that
+
+the
+contributions of the neighboring regions on prediction vary
+spatially across the whole space [5]. If we fail to take the
+heterogeneity into account, modeling the correlations of trafﬁc
+data will be insufﬁcient.
+
+We take the trafﬁc condition forecasting problem in Beijing
+for example. As shown in Fig. 8, the direction of link r1
+is from northeast to southwest while the direction of r2 is
+opposite. We use a box in Fig. 8(a) to abstractly represent
+a convolution ﬁlter, detecting there is a congestion in the
+northeast corner of the local receptive ﬁeld. Since vehicles
+on r1 are driving towards southwest and the congested link
+is directly connected to r1, the feature captured by the ﬁlter
+plays an important role in predicting the trafﬁc condition of r1
+at time t + 1, as show in Fig. 8(b); compared to this, vehicles
+on r2 are driving towards northeast and r2 is not connected to
+the congested region, so the feature that a congestion taking
+place in the northeast corner has less impact on r2 at time
+t + 1, as shown in Fig. 8(b). Another ﬁlter shown in Fig. 8(c)
+captures the feature that there is a congestion in the southwest
+corner of the local receptive ﬁeld. Because the direction along
+this congested region is from southwest to northeast and this
+region is directly connected to r3, the feature have much more
+inﬂuence on r3 than r4. As a result, a detected feature takes
+various effects on different links’ future condition, i.e., the
+extent of the contribution of same correlation is not invariable
+in space.
+
+Therefore, identifying and quantifying the varying extent
+to the roles of features in space is essential for accurately
+modeling spatial and temporal correlations. Consequently,
+we present a “Recalibration” (Rc) block, which explores
+and automatically quantiﬁes the extent of contributions of
+channel-wise features for each region, in order to improve
+our model’s capacity. Moreover, in the ﬁeld of computer
+vision, Hu et al. [36] have also proved that the representational
+power of a neural network can be boosted in modeling
+
+Fig. 9. A recalibration block.
+
+channel-wise features. Fig. 9 shows the architecture of Rc
+block. We stack a Rc block on the last residual unit ResUnit(Lr)
+(as shown in the closeness component in Fig. 4) to perform
+feature recalibration as,
+
+Xc =
+
+C 
+
+Lc+Lr(cid:4)
+
+k=1
+
+wk
+c
+
+◦ x k
+c
+
+(3)
+
+C 
+Lc+Lr
+c
+, . . . , wC 
+
+(Lc+Lr )
+c
+
+]
+
+Lc +Lr
+
+, . . . , x
+
+input X
+
+= [x 1
+c
+
+the
+×I ×J , x k
+c
+
+∈
+where
+RC 
+∈ RI ×J and Wc = [w1
+],
+Lc+Lr
+c
+∈ RI ×J , and ◦ is the element-wise multiplication. We use
+wk
+c
+the learnable parameter Wc to quantify the extent to the roles
+of channel-wise features in space. Therefore, through using
+a Rc block, the difference of the contributions of features
+in space is well considered. For grid (i, j ), its channel-wise
+, . . . , (wC 
+)i, j ] are unique
+features’ contributions [(w1
+c
+c
+and learned based on the historical data.
+
+Lc +Lr
+
+i, j
+
+)
+
+c
+
+2) Structure of the Weekly Period Component: Trafﬁc data
+usually shows obvious periods and trends due to the regular
+daily routine of people. In Fig. 5, an obvious weekly period-
+icity can be observed. In addition, as season changes, trafﬁc
+data also changes according to some trends. For example, in a
+year from spring to winter, when the sun rises later, people’s
+daily travel also becomes later, which inevitably has impacts
+on trafﬁc. According to this, 3D convolutions are employed in
+the weekly period component to learn the periodic and trend
+patterns of trafﬁc data. Formally,
+
+w = f (W (l)
+X (l)
+
+w ∗ X (l−1)
+
+w + bl
+
+w),
+
+l = 1, . . . , Lw
+
+(4)
+
+(l−1)
+w
+
+(l)
+w and b
+
+∈
+where * denotes the operation of 3D convolution. X
+RCl−1×I ×J ×Tl−1 is the input of the lt h 3D convolution layer
+and Cl−1 is the number of the channels. When l = 1, C0 = C
+(l)
+and T0 = dw. W
+w are parameters and f
+is an
+activation function. Here 3D convolutions are employed to
+capture weekly periods and trend patterns along the temporal
+dimension, so the ﬁlter size of 3D convolutions along the
+temporal dimension is set to a positive number larger than 1,
+while the ﬁlter size along the other two dimensions are set to 1.
+Then, we reshape the ﬁnal output of stacked 3D convolution
+×I ×J , where
+layers X
+C 
+= CLw TLw . Afterwards, we use a recalibration block
+(i.e., Rc in the weekly period component shown in Fig. 4)
+again to assign different weights to different features for
+
+∈ RCLw ×I ×J ×TLw to X
+
+∈ RC 
+
+(Lw)
+w
+
+(Lw)
+w
+
+Lw
+
+Lw
+
+GUO et al.: DEEP SPATIAL–TEMPORAL 3D CONVOLUTIONAL NEURAL NETWORKS
+
+3919
+
+different regions:
+
+Xw =
+
+C 
+Lw(cid:4)
+
+k=1
+
+wk
+
+w ◦ x k
+w
+
+(5)
+
+= [x 1
+
+C 
+w ∈ RI ×J and
+w ], x k
+where the input X
+w, . . . , wC 
+w ∈ RI ×J . Ww are learnable para-
+Ww = [w1
+meters to adjust the degrees affected by different long-term
+temporal correlations in different locations.
+
+(Lw)
+w
+w ], wk
+Lw
+
+w, . . . , x
+
+Lw
+
+3) Fusion:
+
+In this subsection, we discuss how to fuse
+the two components mentioned above. As shown in Fig. 4,
+the outputs of the closeness component and the weekly period
+component are denoted as Xc and Xw respectively. It should be
+noted that, the extent to the roles of the closeness component
+and the weekly period component is not globally same in
+space. For some regions long-term patterns are quite obvious,
+while for other regions the recent and sudden impacts are more
+important. So when fusing the two outputs, the extent to the
+contribution of the two kinds of features should be learned
+from the historical data. Formally, the two outputs are fused
+as follows:
+
+X f = W f c ◦ Xc + W f w ◦ Xw
+
+(6)
+
+where ◦ is the element-wise multiplication, W f c and W f w are
+learnable parameters that reﬂect the degrees of the closeness
+inﬂuence and the weekly period inﬂuence on the predicted
+target.
+
+After merging the two outputs, we adopt a ﬁnal activation
+
+layer at the end of our model, formally:
+
+(cid:5)Xt = f (X f )
+
+(7)
+
+where f
+
+4) Loss Function: Our ST-3DNet model
+
+is an activation function, e.g., the rectiﬁer function.
+is trained by
+minimizing the loss function, which is deﬁned as the mean
+squared error (MSE) between the true trafﬁc raster value and
+the predicted value:
+
+Lθ = Xt − (cid:5)Xt 2
+2
+
+(8)
+
+where θ are learnable parameters in ST-3DNet.
+
+5) Training Algorithm: Algorithm 1 demonstrates the train-
+ing process of ST-3DNet, where (cid:5) is the training set, X
+is
+(0)
+the input of the closeness component and X
+w is the input of
+the weekly period component. Firstly, the training instances
+are constructed from the original data. Then forward propa-
+gation and back propagation are repeated applied to train the
+model. Adam algorithm [37] is chosen for optimization.
+
+(0)
+c
+
+IV. EXPERIMENTS
+
+In this section, to evaluate the performance of ST-3DNet,
+we use two types of trafﬁc raster data in our experiments. One
+is about trafﬁc congestion conditions and the other is about
+crowd ﬂows.
+
+Algorithm 1 ST-3DNet Training Algorithm
+Input: The historical
+
+{Xt |t =
+trafﬁc raster
+1, 2, . . . , n}; the lengths of closeness and weekly period
+sequences: dc, dw;
+the time interval between the last
+observed time interval and the predicted time interval (cid:3)t.
+
+sequence:
+
+, ..., Xt − pweek
+
+5:
+
+6:
+
+Output: Learned ST-3DNet model.
+1: ∅ → (cid:5)
+2: // construct training samples
+3: for all available time interval t (0 ≤ t ≤ n) do
+4:
+
+(0)
+c = [Xt −dc
+(0)
+w = [Xt −dw· pweek
+
+, Xt −(dc−1), ..., Xt −1]
+, Xt −(dw−1)· pweek
+
+X
+X
+//Xt +(cid:3)t is the target at time interval t + (cid:3)t
+, X
+put a sample ({X
+
+(0)
+w , Xt +(cid:3)t }) into (cid:5)
+
+7:
+8: end for
+9: // train the model
+10: initialize all learnable parameters θ in ST-3DNet
+11: repeat
+12:
+
+randomly select a batch of samples (cid:5)b from (cid:5)
+ﬁnd θ by minimizing the objective Lθ with (cid:5)b
+
+13:
+14: until stopping criteria is met
+15: output the learned ST-3DNet model
+
+(0)
+c
+
+]
+
+A. Settings
+
+We implement our ST-3DNet based on Keras1 which uses
+
+Tensorﬂow2 as its backend engine.
+
+1) Dataset: Two types of trafﬁc raster data are used in our
+experiments, including trafﬁc congestion conditions and crowd
+ﬂows.
+
+a) Citywide Trafﬁc Congestion Condition Data: TrafﬁcBJ
+is a set of citywide trafﬁc condition data on the road network
+in Beijing, which is scratched from a public website Baidu
+Maps.3 It is collected from May 14th to December 5th in 2017,
+with an updating frequency of six minutes. In practice, from
+11 p.m. to 6 a.m. when most citizens are sleeping, trafﬁc
+condition is generally smooth. So in this study, we only focus
+on the time period from 6 a.m.
+to 11 p.m. when trafﬁc
+congestion often occurs and reliable trafﬁc predictions are
+highly desired for travelers. In TrafﬁcBJ, the road network
+is located within the Fifth Ring Road in Beijing and con-
+sists of 904 road links. The links on the road network are
+partitioned according to the lengths and intersections. The
+lengths of the links may be not the same, but are all in
+around [500,1000] meters. Through necessary preprocessing
+steps (see Appendix), the trafﬁc conditions of all the 904 road
+links are calculated and arranged into raster data with size
+53×42, according to their actual geographical locations. Here,
+we term the raster data as trafﬁc condition snapshots. In a
+trafﬁc condition snapshot, there is only one channel, so C = 1
+and for a grid (i, j ), (Xt )
+0,i, j = 0 means no link passes this
+region. Otherwise, (Xt )0,i, j ∈ [1, 4] represents the average
+trafﬁc condition value of the road link located in grid (i, j ),
+where 1 means the trafﬁc condition is smooth and 4 means
+severely crowded. The statistics of the dataset is described
+
+1https://keras.io/
+2https://www.tensorﬂow.org/
+3https://map.baidu.com/
+
+3920
+
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS, VOL. 20, NO. 10, OCTOBER 2019
+
+TABLE I
+
+STATISTICS OF THE TRAFFIC CONDITION DATASET
+
+both the temporal and spatial correlations. However, Con-
+vLSTM also does not explicitly model periodic and trend
+information. Besides, ST-ResNet treats trafﬁc data snapshots
+in adjacent time intervals as different channels, so its ability
+to describe temporal dependencies among adjacent data is
+limited. Compared with these baseline methods, our ST-3DNet
+can efﬁciently capture recent spatio-temporal correlation as
+well as periods and trends.
+
+Root mean
+
+absolute
+error (MAE) and mean absolute percentage error (MAPE) are
+used as the evaluation metrics to evaluate the models.
+
+(RMSE), mean
+
+square
+
+error
+
+in Table I. Finally, we obtain 36,040 available trafﬁc condition
+snapshots and take the last 10% data as our test set and the
+rest as the training set.
+
+b) Citywide Crowd Flow Data: TaxiBJ and BikeNYC are
+both citywide crowd ﬂows datasets published in [21] and [38],
+as shown in Table II. Similarly, a city is divided into an I × J
+grid map according to the longitude and latitude. Then crowd
+ﬂows data are represented in the format of ST trafﬁc raster
+data in which a grid denotes a region and the values of a
+grid have two channels, respectively denoting the crowd inﬂow
+and outﬂow. TaxiBJ data are crowd ﬂows obtained based on
+the taxicab GPS data in Beijing from four time intervals: 1st
+Jul. 2013 to 30th Oct. 2013, 1st Mar. 2014 to 30th Jun. 2014,
+1st Mar. 2015 to 30th Jun. 2015, and 1st Nov. 2015 to 10th
+Apr. 2016. The data from the last four weeks are taken as the
+test set and the rest are taken as the training set. BikeNYC
+data are crowd ﬂows obtained based on the trip data taken
+from the NYC Bike system in 2014, in which the last 10 days
+are regarded as test data and the remains as training data.
+
+2) Baselines: We compare our ST-3DNet with the following
+
+6 baseline methods:
+
+• HA: The predicted value is the average of the recent
+
+historical trafﬁc data at the corresponding time.
+
+• ARIMA: Autoregressive Integrated Moving Average is a
+
+classical method in time series analysis [39].
+
+• LSTM: Long short-term memory network (LSTM) [22],
+a special kind of RNN. A LSTM unit consists of a cell,
+an input gate, an output gate and a forget gate.
+
+• GRU: Gated-recurrent-unit network (GRU) [23], a spe-
+
+cial kind of RNN.
+
+• ConvLSTM: Convolution LSTM [25] is a kind of LSTM
+which is good at capturing spatio-temporal features.
+• ST-ResNet: A deep neural network based prediction
+model for spatio-temporal data proposed in [21] and [38].
+It shows state-of-the-art performance on the two crowd
+ﬂow prediction tasks.
+
+All of these baselines have their own characteristics. In gen-
+eral, when HA, ARIMA, LSTM and GRU are applied to make
+predictions, their inputs are usually from one entity. While
+other methods, i.e., ConvLSTM, ST-ResNet and our ST-3DNet
+can simultaneously process information from related entities,
+because convolutions in these models can deal with grid-based
+data. More specially, HA merely captures periodic patterns
+of trafﬁc data but ignores recent temporal correlations while
+ARIMA is just the opposite. LSTM and GRU only model
+temporal features and fail to take spatial information into
+account. By contrast, ConvLSTM and ST-ResNet can capture
+
+B. Comparison and Analysis of Results
+
+1) Trafﬁc Congestion Condition Prediction: In this experi-
+ment, 3D convolution layers use 32 ﬁlters with size 3 × 3 × 3,
+and 2D convolution layers in residual units use 32 ﬁlters with
+size 3 × 3. All the activation functions in the model are ReLU.
+The length of the closeness dependent sequence dc is set
+to 31, which means that the trafﬁc conditions within the last
+180 minutes are used for forecasting. The length of the weekly
+period dependent sequence d p is set to 4, which means that
+the trafﬁc conditions within the last 4 weeks are considered
+for prediction. The input data is scaled into range [−1, 1].
+In the experiment, we perform two versions of ST-3DNet,
+i.e., ST-3DNet-C only containing the closeness component,
+and ST-3DNet-CT containing both the closeness component
+and the weekly period component.
+
+Fig. 10 shows the results of our model and other six
+baselines on short-term (6–36 min) trafﬁc forecasting. It can
+be observed that ST-3DNets consistently achieve better per-
+formance than the baseline methods in terms of all evalu-
+ation metrics. More speciﬁcally, in average our ST-3DNets
+have relatively 9.86% lower RMSE, 7.35% lower MAE and
+11.67% lower MAPE than the three temporal models, includ-
+these
+ing ARIMA, LSTM and GRU. The reason is that
+models only capture the temporal dependencies of a region
+and fail to take the spatial dependencies among regions into
+account. Then we compare ST-3DNets against previous state-
+of-the-art spatio-temporal models, including ConvLSTM and
+ST-ResNet. Although ConvLSTM can simultaneously capture
+spatial and temporal information, it is worse than ST-ResNet
+and our ST-3DNets. This is due to the complicated structure
+of ConvLSTM, so it can only stack a few layers. Thus,
+ConvLSTM only considers the nearby spatial information and
+recent temporal information. ST-ResNet simply treats trafﬁc
+raster data from adjacent time intervals as different channels,
+so after the ﬁrst convolution operation, the temporal correlation
+in data is missing. Besides, the top layer in each component of
+ST-ResNet is a convolutional layer, indicating that ST-ResNet
+regards all channel-wise features have the same inﬂuence
+on trafﬁc forecasting of different regions. This is obviously
+not corresponding with the fact. Compared to them, our
+ST-3DNets employ 3D convolutions to maintain the informa-
+tion in the temporal dimension until the temporal features and
+the motion information are fully explored. Besides, ST-3DNets
+append a recalibration block at the end of each component to
+adaptively recalibrate different features for different regions.
+
+GUO et al.: DEEP SPATIAL–TEMPORAL 3D CONVOLUTIONAL NEURAL NETWORKS
+
+3921
+
+TABLE II
+
+STATISTICS OF THE CROWD FLOW DATASET
+
+Fig. 10. Comparison of ST-3DNets with other baselines on the short-term prediction.
+
+Fig. 11. Comparison of ST-3DNets with other baselines on the long-term prediction.
+
+Therefore, ST-3DNets are more sophisticated than the two
+spatio-temporal models.
+
+Moreover, in short-term trafﬁc forecasting, ST-3DNet-CT
+has extremely slight advantages over ST-3DNet-C, although it
+explicitly models the periodicity and the trend in trafﬁc data.
+This may be because the nearby future trafﬁc conditions are
+heavily depended on the just past historical trafﬁc conditions,
+thus the closeness component almost captures all the useful
+information and the extra weekly period component does not
+bring a signiﬁcant performance improvement.
+
+Fig. 11 shows the result comparison on long-term traf-
+ﬁc predictions. In long-term (36–60 min) trafﬁc forecasting,
+the performances of the temporal models drop dramatically,
+which makes the advantage of HA obvious. Such phenomenon
+
+demonstrates that the weekly information, i.e., the periodicity
+and the trend of trafﬁc data is quite essential in long-term
+trafﬁc forecasting. Although LSTM and GRU can capture
+long-term dependencies in theory, in practice, it is difﬁcult for
+them to be well trained when the input sequence is too long
+and redundant. So their long-term trafﬁc forecasting perfor-
+mance is poor. In fact, only a few previous key snapshots have
+great inﬂuence on the prediction. Consequently, in ST-3DNet
+we use an independent component to explicitly model the
+weekly periodic and trend patterns based on the corresponding
+historical trafﬁc raster data. Besides, the performance of Con-
+vLSTM drops relatively slower than other baseline methods,
+indicating both the spatial and temporal correlations should
+be well considered in the long-term prediction. Among all
+
+3922
+
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS, VOL. 20, NO. 10, OCTOBER 2019
+
+COMPARISON OF ST-3DNETS WITH OTHER BASELINES ON TAXIBJ AND BIKENYC
+
+TABLE III
+
+Fig. 12. Effect of the recalibration block.
+
+Fig. 13. Effect of different network conﬁgurations.
+
+the methods, our ST-3DNets show the best generalization
+performance in terms of all the three valuation metrics.
+
+In addition, it is noticed that in long-term trafﬁc forecasting,
+the gap between ST-3DNet-C and ST-3DNet-CT becomes
+wider. That is because with the increasing of the prediction
+time interval, contributions of recent historical trafﬁc condi-
+tions for forecasting become less. By contrast, the periodic and
+trend patterns in trafﬁc data is more signiﬁcant and should be
+paid more attention.
+
+a) Effect of the Recalibration Block: To show the effect
+of the Rc block, we conduct a comparative study. ST-3DNet-
+C-withoutRc is a degraded version of ST-3DNet-C, which
+removes the Rc block. Fig. 12 (a) shows the results of
+ST-3DNet-C-withoutRc and ST-3DNet-C on trafﬁc condition
+forecasting. With the prediction interval changing from 6 mins
+to 60 mins, due to lack of modeling the differences of
+links, ST-3DNet-C-withoutRc always performs worse than
+ST-3DNet-C. By contrast, thanks to the Rc block which can
+automatically recalibrate the importance of channel-wise fea-
+tures for different regions, ST-3DNet-C achieves better fore-
+casting performance. In order to further investigate the role of
+the Rc block intuitively, we perform a case study: picking out
+a partial region with 10×10 grids from TrafﬁcBJ, and showing
+their weight matrix in the Rc layer. We take ST-3DNet-C on
+the 36-min prediction as an example and randomly select four
+channels (features). As shown in the Fig. 12 (b), in each weight
+matrix, the value of (i, j ) represents the contribution of the
+corresponding feature on the grid (i, j ). We can observe that
+a same feature has various contributions for each grid, and
+different features have different contributions for a same grid.
+
+Thus, the Rc layer automatically learn the contributions of the
+channel-wise features based on the historical data.
+
+b) Effect of Different Network Conﬁgurations: To verify
+how the ﬁlter size impacts the performance of ST-3DNet,
+we set the number of residual unit to 1 and change the size
+of the convolution ﬁlter from 2 × 2 to 7 × 7, as shown
+in Fig. 13 (a). Taking ST-3DNet-C on the 36-min prediction
+as an example, when the ﬁlter size increases from 2 to 3,
+the RMSE drops dramatically and when the ﬁlter size increases
+from 3 to 7, the RMSE does not change a lot. Since large ﬁlter
+size will cost much more time to train the model, we set it
+to 3. Fig. 13 (b) shows the impact of network depth. Taking
+ST-3DNet-C on the 36-min prediction for example, when the
+network becomes deeper i.e., the number of residual units
+increases, the RMSE of ST-3DNet-C decreases, demonstrat-
+ing that appropriately increasing network depth can improve
+model performance.
+
+2) Crowd Flows Prediction: In this experiment, the ﬁrst 3D
+convolution layer uses 64 ﬁlters with size l × 3 × 3, where l
+equals to the size of the input data in the temporal dimension.
+The other 3D convolution layers use 64 ﬁlters with size
+3 × 3 × 3, and the 2D convolution layers in residual units use
+64 ﬁlters with size 3 × 3. All the activation functions in the
+model are ReLU. We let the length of the closeness dependent
+sequence dc ∈ {3, 4, 5, 6, 7, 8, 9} and the length of the weekly
+period depend sequence d p ∈ {2, 3, 4}. The input data is
+scaled into range [−1, 1]. We also consider external features
+according to [21]. We present the comparison against other
+6 baselines on the TaxiBJ and BikeNYC datasets, as shown
+in Table III.
+
+GUO et al.: DEEP SPATIAL–TEMPORAL 3D CONVOLUTIONAL NEURAL NETWORKS
+
+3923
+
+The experimental results on TaxiBJ shows that without
+taking external factors into account, our ST-3DNet reduces the
+RMSE to 16.21, MAE to 9.36 and MAPE to 0.23, which has
+already been better than the previous best model ST-ResNet.
+Further considering the external
+features, ST-3DNet-Ext
+achieves slightly better results than ST-3DNet. When applied
+to another crowd ﬂows data BikeNYC, ST-3DNet still shows
+the best generalization performance in terms of all evaluation
+metrics, which veriﬁes again our idea that 3D convolutions
+can efﬁciently capture the spatio-temporal features in trafﬁc
+raster data and the recalibration unit which recalibrates the
+features for each region in the raster area can further improve
+the capacity of the prediction model.
+
+V. CONCLUSION
+
+Fig. 14. The grid map of Beijing.
+
+In this work, we propose a novel deep learning based
+spatio-temporal neural network (ST-3DNet) for predicting
+trafﬁc raster data. ST-3DNet employs 3D convolutions to
+extract features from both spatial and temporal dimensions.
+Considering trafﬁc data show obvious cyclical patterns and
+trends, ST-3DNet explicitly models the temporal properties of
+trafﬁc data, including closeness and weekly period. In order
+to describe the heterogeneity of trafﬁc data in space, a new
+Rc block is proposed to select and recalibrate features for
+every region. We evaluate our model on three real datasets
+in trafﬁc domain and the experimental results show that our
+model achieves the best performance against other baselines.
+It is worth noting, ST-3DNet is a general-purpose model,
+which is suitable for many trafﬁc forecasting problems as long
+as the data can be represented in the form of spatio-temporal
+trafﬁc raster data. So it can be widely applied in ITS to
+provide future reliable trafﬁc guidance information and to help
+improving the safety and efﬁciency of ITS.
+
+Fig. 15. Grids involved in road links.
+
+Deﬁnition 3 (Average Trafﬁc Condition): Assume φk =
+{(m, n)}
+k is a set of grids involved in road link k. As shown
+in Fig. 15, each road link may cover some grids. We deﬁne
+the average trafﬁc condition x k
+
+t on link k at time t as:
+
+(cid:6)
+
+(m,n)
+t
+
+x
+
+(9)
+
+APPENDIX
+PREPROCESSING ON TRAFFICBJ DATASET
+
+(k)
+t
+
+x
+
+=
+
+(m,n)∈φk
+|φk|
+
+Here, some relevant concepts and detailed preprocessing on
+TrafﬁcBJ dataset are given. Through preprocessing, the trafﬁc
+conditions of all the road links are organized into raster data
+according to the actual spatial relations among the links.
+Suppose there are totally K road links on the road network,
+and x k
+t denotes the average trafﬁc condition of link k at
+time t.
+
+Deﬁnition 2 (Grid Map): A city is partitioned into a M × N
+grid-based map MG according to the longitude and latitude,
+as shown in Fig. 14. Each grid represents a spatial region.
+For a grid (m, n) at
+the m-th row and the n-th column,
+(m,n)
+x
+denotes its trafﬁc condition at time t. For each grid
+t
+(m, n), x
+= 0 means no link passes this region, otherwise
+(m,n)
+∈ {1, 2, 3, 4} denotes the grade of the trafﬁc condition
+x
+t
+in this region, where 1 to 4 respectively means that the trafﬁc
+condition is smooth, slow, congested and severely congested.
+The trafﬁc congestion level is prescribed by the web mapping
+service provider, such as Baidu Maps4 and AutoNavi.5
+
+(m,n)
+t
+
+4https://en.wikipedia.org/wiki/Baidu_Maps/
+5https://en.wikipedia.org/wiki/AutoNavi
+
+where |φk| is the number of grids involved in link k.
+
+When m and n are set to small values, the partitioned
+grids in MG become larger, so road areas and roadless areas
+likely appear in one grid. Thus, the calculated average trafﬁc
+condition is coarse-grained. In order to get trafﬁc information
+at a ﬁne granularity, m and n should be set to relatively large
+values. In this way, there are more grids in MG , which greatly
+increases the computing complexity of the subsequent opera-
+tions. Besides, since road links only cover a little proportion
+of area in a city, most of the grid values in MG are zero.
+But actually we are not very concerned about these roadless
+regions. Therefore, a citywide trafﬁc condition compressed
+representation method is proposed to get rid of worthless
+information and to reduce the storage space. It rearranges road
+links in relatively small raster data and well retains the spatial
+topological relations among links.
+
+Deﬁnition 4 (Link Map): We arrange all road links into a
+reduced raster structure ML according to their actual locations
+and ML ∈ RI ×J is termed as Link Map. So we need to deﬁne
+a map function f : MG → ML , where (ML )i, j = ∅ indicates
+(ML )i, j
+is a roadless area, and (ML )i, j = φk
+indicates
+
+3924
+
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS, VOL. 20, NO. 10, OCTOBER 2019
+
+Algorithm 2 Transformation From Grid Map to Link Map
+Input: The
+and
+
+links
+{(lngk, lat k)|k = 1, . . . , K }; grid map MG ; the number of
+columns J of the link map ML .
+
+longitude
+
+latitude
+
+all
+
+of
+
+Fig. 16. An example of the transformation from grid map to link map.
+
+that the grid set φk of link k is mapped into the location
+(i, j ) in ML .
+
+A compression algorithm is proposed to convert MG ∈
+RM×N into ML ∈ RI ×J to reduce the storage space and
+data sparsity. As shown in Algorithm 2, the input of the
+algorithm includes the longitude and latitude of all
+links
+{(lngk, lat k)|k = 1, . . . , K },
+the grid map MG and J ,
+the number of columns of the link map ML . Three operations,
+including division, sort and alignment are involved in the
+algorithm. In the division operation, MG ∈ RM×N is divided to
+J equal longitudinal parts, so all the road links are divided into
+J subsets according to their longitude. Subsequently, we sort
+the links in each subset by their latitude. The max_number
+represents the maximum value of the subsets’ sizes. In order to
+arrange all the links contained in the largest subset, the initial
+value of the row count in ML is set to max_number . Finally,
+in last alignment operation, every link in each subset are
+arranged into a location according to its latitude. In the
+compression algorithm, J is a hyperparameter that needs to
+be set in advance, and a proper value of J is needed to ensure
+that the topological structure of links in ML is very similar to
+that in the original MG .
+
+Fig. 16 gives a demonstration of Algorithm 2. Take Traf-
+ﬁcBJ for example, which contains the trafﬁc conditions of
+the area within the Fifth Ring Road in Beijing. The dis-
+tance between the north and the south of the area is around
+30 kilometers, so is the distance between the east and the
+west. Thus, when the area is divided into a 620 × 620 grid
+map, the height and width of each grid are around 48 meters,
+which is a proper size that just contains one trunk road link
+segment. Therefore, in the study case, when we partition the
+city, the hyperparameters M and N are set to 620. Afterwards,
+in the compression algorithm, the hyperparameter J is set to
+42 by trial. As shown in the left part in Fig. 16, the original
+grid map MG is almost a square, thus the corresponding
+compressed link map which retains the spatial information of
+the original grid map ML should also be an approximated
+square with nearly equal height and width. By trial, when
+ML is divided into 42 equal longitudinal subsets, we ﬁnd that
+max_number of the subsets is 42, equal to J , which ensures
+that the link map ML is also an approximated square. Then,
+according to Algorithm 2, we divide MG into 42 equal parts
+along the latitude and then orderly arrange links of each subset
+into ML according to their latitude. The algorithm ﬁnally
+rearranges all the road links into ML of size 53 × 42, where
+the row count of ML is automatically calculated according to
+
+Output: Link map ML
+
+// divide {(lngk, lat k)} into J subsets {SubSet j }J
+
+2: // divide MG into J equal parts {P1, P2, . . . , PJ } according
+
+j =1
+
+to the longitude
+for each road link k do
+
+if
+
+4:
+
+6:
+
+lngk ≥ Pj .lngk and lngk < Pj +1.lngk
+SubSet j .add((lngk, lat k))
+lng_i ndexk = j
+
+end if
+
+8: end for
+
+// sort each subset
+10: for each SubSet j do
+
+sort all (lngk, lat k) in SubSet j by lat k
+
+then
+
+12: end for
+
+max_number = max
+
+|SubSet j |
+
+j
+
+14: step =
+
+M
+max_number
+
+divide M_G
+
+equal
+{Q1, Q2, . . . , Qmax_number } along the latitude
+
+max_number
+
+into
+
+parts
+
+16: // alignment
+
+I = max_number
+18: for each SubSet j do
+
+for each (lngk, lat k) in SubSet j do
+
+lat_i ndex k =  lat k
+st ep
+if (ML )
+j,lat _index k = ∅ then
+j,lat _index k = φk
+(ML )
+
+else
+
+while (ML )
+
+j,lat _index k = ∅ do
+
+lat_i ndex k + +
+if lat_i ndex k > I then
+I = lat_i ndex k
+
+end if
+end while
+(ML )
+
+j,lat _index k = φk
+
+end if
+end for
+
+20:
+
+22:
+
+24:
+
+26:
+
+28:
+
+30:
+
+32:
+
+end for
+34: return ML
+
+the alignment operation. As shown in Fig. 16, compared to
+left grid map MG , the spatial relations of the road links are
+well remained in the right link map ML
+
+Deﬁnition 5 (Trafﬁc Condition Snapshot): A trafﬁc condi-
+tion snapshot of the link map ML at time t is denoted as Xt ,
+where Xt ∈ R1×I ×J is a tensor. Xt is deﬁned as follows:
+
+(Xt )0,i, j =
+
+(cid:7)
+
+0 (ML )i, j = ∅
+(ML )i, j = φk
+x k
+t
+
+(10)
+
+Hence, for a grid (i, j ) in Xt , (Xt )
+0,i, j = 0 means no link
+passes this region. Otherwise, (Xt )0,i, j ∈ [1, 4] represents the
+average trafﬁc condition of the road link k located in (i, j )
+in ML .
+
+GUO et al.: DEEP SPATIAL–TEMPORAL 3D CONVOLUTIONAL NEURAL NETWORKS
+
+3925
+
+Therefore, after the preprocessing step described above,
+a series of trafﬁc condition snapshots of size 53 × 42 are
+got. The trafﬁc condition snapshots not only comprehensively
+reﬂect the trafﬁc conditions of all the links on the road network
+in a relatively small-scale raster data, but also retain the spatial
+information of the original road network.
+
+ACKNOWLEDGMENT
+
+The authors sincerely thank three undergraduates Mingfei
+Jiang, Yan Lin and Xiaohui Liang in Beijing Jiaotong Univer-
+sity for collecting and preprocessing the experimental datasets.
+
+REFERENCES
+
+[1] J. Zhang, F.-Y. Wang, K. Wang, W.-H. Lin, X. Xu, and C. Chen, “Data-
+driven intelligent transportation systems: A survey,” IEEE Trans. Intell.
+Transp. Syst., vol. 12, no. 4, pp. 1624–1639, Dec. 2011.
+
+[2] X. Ma, Z. Tao, Y. Wang, H. Yu, and Y. Wang, “Long short-term memory
+neural network for trafﬁc speed prediction using remote microwave
+sensor data,” Transp. Res. C, Emerg. Technol., vol. 54, pp. 187–197,
+May 2015.
+
+[3] M. Fouladgar, M. Parchami, R. Elmasri, and A. Ghaderi, “Scalable deep
+trafﬁc ﬂow neural networks for urban trafﬁc congestion prediction,” in
+Proc. Int. Joint Conf. Neural Netw. (IJCNN), May 2017, pp. 2251–2258.
+[4] Y. LeCun, Y. Bengio, and G. Hinton, “Deep learning,” Nature, vol. 521,
+
+pp. 436–444, May 2015.
+
+[5] T. Cheng, J. Haworth, and J. Wang, “Spatio-temporal autocorrelation
+of road network data,” J. Geograph. Syst., vol. 14, no. 4, pp. 389–413,
+Oct. 2012.
+
+[6] M. M. Hamed, H. R. Al-Masaeid, and Z. M. B. Said, “Short-term
+prediction of trafﬁc volume in urban arterials,” J. Transp. Eng., vol. 121,
+no. 3, pp. 249–254, May 1995.
+
+[7] M. Van Der Voort, M. Dougherty, and S. Watson, “Combining Kohonen
+maps with ARIMA time series models to forecast trafﬁc ﬂow,” Transp.
+Res. C, Emerg. Technol., vol. 4, no. 5, pp. 307–318, 1996.
+
+[8] B. M. Williams and L. A. Hoel, “Modeling and forecasting vehicular
+trafﬁc ﬂow as a seasonal ARIMA process: Theoretical basis and empir-
+ical results,” J. Transp. Eng., vol. 129, no. 6, pp. 664–672, Nov. 2003.
+[9] N. G. Polson and V. O. Sokolov, “Deep learning for short-term trafﬁc
+ﬂow prediction,” Transp. Res. C, Emerg. Technol., vol. 79, pp. 1–17,
+Jun. 2017.
+
+[10] A. J. Smola and B. Schölkopf, “A tutorial on support vector regression,”
+
+Statist. Comput., vol. 14, no. 3, pp. 199–222, Aug. 2004.
+
+[11] T. Evgeniou, M. Pontil, and T. Poggio, “Regularization networks and
+support vector machines,” Adv. Comput. Math., vol. 13, no. 1, p. 1,
+Apr. 2000.
+
+[12] B. S. Westgate, D. B. Woodard, D. S. Matteson, and S. G. Henderson,
+“Travel time estimation for ambulances using Bayesian data augmenta-
+tion,” Ann. Appl. Statist., vol. 7, no. 2, pp. 1139–1161, 2013.
+
+[13] O. Anacleto, C. Queen, and C. J. Albers, “Multivariate forecasting of
+road trafﬁc ﬂows in the presence of heteroscedasticity and measurement
+errors,” J. Roy. Stat. Soc., C, vol. 62, no. 2, pp. 251–270, Mar. 2013.
+
+[14] G. A. Davis and N. L. Nihan, “Nonparametric regression and short-
+term freeway trafﬁc forecasting,” J. Transp. Eng., vol. 117, no. 2,
+pp. 178–188, Mar. 1991.
+
+[15] H. Chang, Y. Lee, B. Yoon, and S. Baek, “Dynamic near-term trafﬁc
+ﬂow prediction: Systemoriented approach based on past experiences,”
+IET Intell. Transp. Syst., vol. 6, no. 3, pp. 292–305, Sep. 2012.
+[16] M. G. Karlaftis and E. I. Vlahogianni, “Statistical methods versus neural
+networks in transportation research: Differences, similarities and some
+insights,” Transp. Res. C, vol. 19, no. 3, pp. 387–399, Jun. 2011.
+[17] W. Huang, G. Song, H. Hong, and K. Xie, “Deep architecture for trafﬁc
+ﬂow prediction: Deep belief networks with multitask learning,” IEEE
+Trans. Intell. Transp. Syst., vol. 15, no. 5, pp. 2191–2201, Oct. 2014.
+
+[18] Y. Lv, Y. Duan, W. Kang, Z. Li, and F.-Y. Wang, “Trafﬁc ﬂow prediction
+with big data: A deep learning approach,” IEEE Trans. Intell. Transp.
+Syst., vol. 16, no. 2, pp. 865–873, Apr. 2015.
+
+[19] H.-F. Yang, T. S. Dillon, and Y.-P. P. Chen, “Optimized structure of the
+trafﬁc ﬂow forecasting model with a deep learning approach,” IEEE
+Trans. Neural Netw. Learn. Syst., vol. 28, no. 10, pp. 2371–2381,
+Oct. 2017.
+
+[20] Y. LeCun, L. Bottou, Y. Bengio, and P. Haffner, “Gradient-based
+learning applied to document recognition,” Proc. IEEE, vol. 86, no. 11,
+pp. 2278–2324, Nov. 1998.
+
+[21] J. Zhang, Y. Zheng, and D. Qi, “Deep spatio-temporal residual networks
+for citywide crowd ﬂows prediction,” in Proc. 31st AAAI Conf. Artif.
+Intell., Feb. 2017, pp. 1655–1661.
+
+[22] S. Hochreiter and J. Schmidhuber, “Long short-term memory,” Neural
+
+Comput., vol. 9, no. 8, pp. 1735–1780, 1997.
+
+[23] J. Chung, C. Gulcehre, K. Cho, and Y. Bengio, “Empirical evaluation of
+gated recurrent neural networks on sequence modeling,” in Proc. NIPS
+Deep Learn. Represent. Learn. Workshop, Dec. 2014.
+
+[24] Z. Zhao, W. Chen, X. Wu, P. C. Y. Chen, and J. Liu, “LSTM network:
+A deep learning approach for short-term trafﬁc forecast,” IET Intell.
+Transp. Syst., vol. 11, no. 2, pp. 68–75, Mar. 2017.
+
+[25] S. H. I. Xingjian, Z. Chen, H. Wang, D.-Y. Yeung, W.-K. Wong, and
+W.-C. Woo, “Convolutional LSTM network: A machine learning
+approach for precipitation nowcasting,” in Proc. Adv. Neural
+Inf.
+Process. Syst., 2015, pp. 802–810.
+
+[26] J. Wang, T. Cheng, B. G. Heydecker, and J. Howarth, “STARIMA for
+journey time prediction in London,” in Proc. 5th IMA Conf. Math.
+Transp., 2010.
+
+[27] Y. Yue and A. G.-O. Yeh, “Spatiotemporal
+
+trafﬁc-ﬂow dependency
+and short-term trafﬁc forecasting,” Environ. Planning B, Planning Des.,
+vol. 35, no. 5, pp. 762–771, Oct. 2008.
+
+[28] Q. Y. Ding, X. F. Wang, X. Y. Zhang, and Z. Q. Sun, “Forecasting
+trafﬁc volume with space-time ARIMA model,” Adv. Mater. Res.,
+vol. 156, pp. 979–983, 2011.
+
+[29] X. Min, J. Hu, Q. Chen, T. Zhang, and Y. Zhang, “Short-term trafﬁc
+ﬂow forecasting of urban network based on dynamic STARIMA model,”
+in Proc. 12th Int. IEEE Conf. Intell. Transp. Syst., Oct. 2009, pp. 1–6.
+[30] X. Min, J. Hu, and Z. Zhang, “Urban trafﬁc network modeling and short-
+term trafﬁc ﬂow forecasting based on GSTARIMA model,” in Proc. 13th
+Int. IEEE Conf. Intell. Transp. Syst., Sep. 2010, pp. 1535–1540.
+[31] D. Tran, L. Bourdev, R. Fergus, L. Torresani, and M. Paluri, “Learning
+spatiotemporal features with 3D convolutional networks,” in Proc. IEEE
+Int. Conf. Comput. Vis. (ICCV), Dec. 2015, pp. 4489–4497.
+
+[32] S. Ji, W. Xu, M. Yang, and K. Yu, “3D convolutional neural networks
+for human action recognition,” IEEE Trans. Pattern Anal. Mach. Intell.,
+vol. 35, no. 1, pp. 221–231, Jan. 2013.
+
+[33] G. Atluri, A. Karpatne, and V. Kumar, “Spatio-temporal data min-
+ing: A survey of problems and methods,” ACM Comput. Surv., vol. 51,
+no. 4, Sep. 2018, Art. no. 83.
+
+[34] K. He, X. Zhang, S. Ren, and J. Sun, “Deep residual learning for
+image recognition,” in Proc. IEEE Conf. Comput. Vis. Pattern Recog-
+nit. (CVPR), Jun. 2016, pp. 770–778.
+
+[35] I. Goodfellow, A. C. Courville, and Y. Bengio, Deep Learning, vol. 1.
+
+Cambridge, MA, USA: MIT Press, 2016,
+
+[36] J. Hu, L. Shen, and G. Sun, “Squeeze-and-excitation networks,” in
+Proc. IEEE Conf. Comput. Vis. Pattern Recognit. (CVPR), Jun. 2018,
+pp. 7132–7141.
+
+[37] D. P. Kingma and J. Ba, “Adam: A method for stochastic optimization,”
+in Proc. 3rd Int. Conf. Learn. Represent., Dec. 2014, pp. 1–15.
+[38] J. Zhang, Y. Zheng, D. Qi, R. Li, X. Yi, and T. Li, “Predicting citywide
+crowd ﬂows using deep spatio-temporal residual networks,” Artif. Intell.,
+vol. 259, pp. 147–166, Jun. 2018.
+
+[39] G. E. P. Box and D. A. Pierce, “Distribution of residual autocorrela-
+tions in autoregressive-integrated moving average time series models,”
+J. Amer. Statist. Assoc., vol. 65, no. 332, pp. 1509–1526, Apr. 1970.
+
+Shengnan Guo received the B.S. degree in computer
+science from Beijing Jiaotong University, Beijing,
+China,
+in 2015, where she is currently pursuing
+the Ph.D. degree with the School of Computer and
+Information Technology.
+
+Her research interests focus on trafﬁc data mining
+
+and intelligent transportation technology.
+
+3926
+
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS, VOL. 20, NO. 10, OCTOBER 2019
+
+Youfang Lin received the Ph.D. degree in computer
+science and technology from Beijing Jiaotong Uni-
+versity, Beijing, China, in 2003.
+
+He is currently a Professor with the School
+of Computer and Information Technology, Beijing
+Jiaotong University. His main ﬁelds of expertise
+and current research interests include big data tech-
+nology, intelligent systems, complex networks, and
+trafﬁc data mining.
+
+Shijie Li is currently pursuing the bachelor’s degree
+with the School of Computer and Information Tech-
+nology, Beijing Jiaotong University.
+
+His research interests focus on machine learning
+
+and data mining.
+
+Zhaoming Chen is currently pursuing the bachelor’s
+degree with the School of Computer and Information
+Technology, Beijing Jiaotong University.
+
+His research interests focus on machine learning
+
+and data mining.
+
+Huaiyu Wan received the Ph.D. degree in computer
+science and technology from Beijing Jiaotong Uni-
+versity, Beijing, China, in 2012.
+
+He is currently an Associate Professor with the
+School of Computer and Information Technology,
+Beijing Jiaotong University. His current research
+interests focus on trafﬁc data mining and social
+network mining, and user behavior analysis.
+

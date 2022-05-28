@@ -1,0 +1,1545 @@
+The Thirty-Fourth AAAI Conference on Artiﬁcial Intelligence (AAAI-20)
+
+Self-Attention ConvLSTM for Spatiotemporal Prediction
+
+Zhihui Lin,1,2 Maomao Li,2 Zhuobin Zheng,1,2 Yangyang Cheng,1,2 Chun Yuan2,3*
+1Department of Computer Science and Technologies, Tsinghua University, Beijing, China
+2Graduate School at Shenzhen, Tsinghua University, Shenzhen, China
+3Peng Cheng Laboratory, Shenzhen, China
+{lin-zh14, mm-li17, zhengzb16, cheng-yy13}@mails.tsinghua.edu.cn, yuanc@sz.tsinghua.edu.cn
+
+Abstract
+
+Spatiotemporal prediction is challenging due to the com-
+plex dynamic motion and appearance changes. Existing work
+concentrates on embedding additional cells into the standard
+ConvLSTM to memorize spatial appearances during the pre-
+diction. These models always rely on the convolution layers
+to capture the spatial dependence, which are local and inef-
+ﬁcient. However, long-range spatial dependencies are signif-
+icant for spatial applications. To extract spatial features with
+both global and local dependencies, we introduce the self-
+attention mechanism into ConvLSTM. Speciﬁcally, a novel
+self-attention memory (SAM) is proposed to memorize fea-
+tures with long-range dependencies in terms of spatial and
+temporal domains. Based on the self-attention, SAM can pro-
+duce features by aggregating features across all positions of
+both the input itself and memory features with pair-wise sim-
+ilarity scores. Moreover, the additional memory is updated
+by a gating mechanism on aggregated features and an estab-
+lished highway with the memory of the previous time step.
+Therefore, through SAM, we can extract features with long-
+range spatiotemporal dependencies. Furthermore, we embed
+the SAM into a standard ConvLSTM to construct a self-
+attention ConvLSTM (SA-ConvLSTM) for the spatiotempo-
+ral prediction. In experiments, we apply the SA-ConvLSTM
+to perform frame prediction on the MovingMNIST and KTH
+datasets and trafﬁc ﬂow prediction on the TexiBJ dataset.
+Our SA-ConvLSTM achieves state-of-the-art results on both
+datasets with fewer parameters and higher time efﬁciency
+than previous state-of-the-art method.
+
+1
+
+Introduction
+
+Spatiotemporal predictive learning has emerged as an im-
+portant and foundational research problem for a wide range
+of computer vision and artiﬁcial intelligence and received
+growing interests in the research communities (Shi et al.
+2015; Zhang et al. 2017; Shi et al. 2017a; Kalchbrenner
+et al. 2017; Wang et al. 2017a; 2018b; Xu et al. 2018;
+Wang et al. 2019). It deserves to be studied in depth to
+serve the practical applications, such as trafﬁc ﬂows predic-
+tion (Zhang et al. 2017; Xu et al. 2018), precipitation fore-
+
+Copyright c(cid:2) 2020, Association for the Advancement of Artiﬁcial
+Intelligence (www.aaai.org). All rights reserved.
+*Corresponding Author: Chun Yuan
+
+casting (Shi et al. 2015; 2017b; Wang et al. 2017b) and phys-
+ical interactions simulation (Lerer, Gross, and Fergus 2016;
+Finn, Goodfellow, and Levine 2016). Spatiotemporal predic-
+tion is challenging due to the complex dynamics and appear-
+ance changes, which requires dependencies on both tempo-
+ral and spatial domains.
+
+ConvLSTM (Shi et al. 2015) replaces all the linear oper-
+ations in it with convolution layers to capture spatial depen-
+dencies besides the long-short term modeling, and many of
+its variants (Wang et al. 2017a; 2018b; 2019) have achieved
+impressive results on spatiotemporal prediction. However,
+although long-range spatial dependencies can be captured
+by stacked convolution layers, the effective receptive ﬁeld
+is much smaller than the theoretical receptive ﬁeld (Luo et
+al. 2016). Besides, features far away from a speciﬁc location
+have to pass through a stack of layers before affecting the
+location for both forward propagation and backward prop-
+agation, which would add the optimization difﬁculties dur-
+ing the training (Chen et al. 2018). Therefore, ConvLSTM
+and its previous variants tend to suffer from the limited abil-
+ity to capture long-range spatial dependencies. To amelio-
+rate this, TrajGRU (Shi et al. 2017b) adopts a convolution
+layer to learn offsets of each position in the hidden state of
+a GRU block. It works in a similar way to the deformable
+convolution (Dai et al. 2017), which enhances it in model-
+ing complex object deformations. Nevertheless, these offsets
+only provide sparse spatial dependencies and are estimated
+with the local receptive ﬁeld. Here comes to a question that
+how to make the ConvLSTM capture effective long-range
+dependencies.
+
+Compared to the convolution operation, the self-attention
+module (Vaswani et al. 2017; Wang et al. 2018a) is capable
+of obtaining the global spatial context with a single layer,
+which is more efﬁcient. Besides, we argue that features at
+the current time step can beneﬁt from aggregating relevant
+features in the past. Therefore, we propose the self-attention
+memory module for ConvLSTM, or SAM in short. SAM uti-
+lizes the feature aggregation mechanism of the self-attention
+to fuse both the current and memorized features through cal-
+culating pair-wise similarity scores. Here, we use an addi-
+tional memory cell M to memorize previous features which
+contains global spatial receptive ﬁeld. Besides in the spa-
+
+11531
+
+tial domain, M can capture long-range temporal dependen-
+cies through a gating mechanism, which is similar to that in
+LSTM. The SAM is embedded into ConvLSTM to construct
+the self-attention ConvLSTM, or SA-ConvLSTM in short.
+We evaluate the above models on MovingMNIST and KTH
+for multi-frame prediction, and TexiBJ for trafﬁc ﬂow pre-
+diction. Ablation experiments demonstrate the effectiveness
+of self-attention and additional memory on different types
+of data. Moreover, SA-ConvLSTM achieves the best results
+on all datasets with fewer parameters and higher efﬁciency
+than previous state-of-the-art methods. Our contribution can
+be summarized as follows:
+• We propose a novel variant of ConvLSTM, named SA-
+ConvLSTM to perform spatiotemporal prediction, which
+can successfully capture long-range spatial dependencies.
+• We design a memory-based self-attention module (SAM)
+to memorize the global spatiotemporal dependencies dur-
+ing the prediction.
+
+• We evaluate SA-ConvLSTM on MovingMNIST and KTH
+for multi-frame prediction and TexiBJ for trafﬁc ﬂow pre-
+diction. It achieves the best results in all datasets with
+fewer parameters and higher efﬁciency than the current
+state-of-the-art model MIM.
+
+2 Related Work
+Spatiotemporal Prediction with ConvRNNs. Variants of
+ConvLSTM (Shi et al. 2015) have been proposed to conduct
+spatiotemporal prediction. PredRNN (Wang et al. 2017b) in-
+troduced an additional spatiotemporal memory cell to prop-
+agate information across both horizontal and vertical di-
+rections with the highway connection, which is helpful to
+model spatial dynamics. PredRNN++ (Wang et al. 2018b)
+increases the transition depth by re-organizing the memo-
+ries of PredRNN in a cascade fashion. To enhance the abil-
+ity of PredRNN on modeling high-order dynamics, Mem-
+ory in Memory (MIM) (Wang et al. 2019) introduces more
+memory cells to process non-stationary and stationary infor-
+mation, which achieves the current SOTA performance in
+spatiotemporal prediction while result in a multiplication of
+computation and memory usage. All of them stack convolu-
+tion layers to obtain spatial dependences since deeper net-
+works can be exponentially more efﬁcient in capturing both
+spatial and temporal dependences (Bianchini and Scarselli
+2014; Pascanu, Mikolov, and Bengio 2013). However, it is
+easy for them to suffer from the vanishing gradient prob-
+lem (Bengio et al. 1994; Pascanu, Mikolov, and Bengio
+2013). Besides, although the above additional cells for mem-
+orizing spatial appearance improve the model capacity of
+ConvLSTM models, their memory cells tend to focus on lo-
+cal spatial dependences. In this paper, we propose a self-
+attention memory cell for ConvLSTM, which can not only
+obtain the long-term temporal dependence through the adap-
+tive updating in the highway but also efﬁciently extract the
+global spatial dependence through self-attention.
+Self-Attention Modules. The self-attention mechanism is
+ﬁrst proposed to draw global dependencies of inputs and ap-
+plied in machine translation (Vaswani et al. 2017). As for
+
+computer vision tasks, self-attention is able to capture long-
+range spatial-temporal dependencies by calculating the pair-
+wise relations among the different position of feature maps
+during a binary relation function. Then the attended features
+can be calculated through these relations (Zhang et al. 2019).
+Then, several variants (Fu et al. 2019; Chen et al. 2018;
+Huang et al. 2019) were proposed for more efﬁcient comput-
+ing or more diverse attention types. The successes of self-
+attention on pixel-level tasks (Huang et al. 2019; Fu et al.
+2019; Zhang et al. 2019) demonstrate its effectiveness on
+aggregating salient features among all spatial positions. In
+this paper, We utilize the property of self-attention to con-
+struct a self-attention memory module and embed it into the
+ConvLSTM as SA-ConvLSTM, which is capable of bring-
+ing global dependency effectively.
+
+3 Methods
+In order to evaluate the effectiveness of self-attention in spa-
+tiotemporal prediction, we construct a basic self-attention
+ConvLSTM model by cascading self-attention module and
+the standard ConvLSTM, which is detailed in Section 3.1.
+Afterwards, a more advanced and sophisticated model SA-
+ConvLSTM is built based on the proposed self-attention
+memory module, which is introduced in Section 3.3.
+
+3.1 Base Model
+The base model is a simple combination of self-attention and
+ConvLSTM; that is, the base model is built by the direct cas-
+cade of two parts. This base model is formulated as follows:
+
+ˆXt = SA(Xt), ˆHt−1 = SA(Ht−1)
+it = σ(Wxi ∗ ˆXt + Whi ∗ ˆHt−1 + bi)
+ft = σ(Wxf ∗ ˆXt + Whf ∗ ˆHt−1 + bf )
+gt = tanh(Wxc ∗ ˆXt + Whc ∗ ˆHt−1 + bc)
+Ct = ft ◦ Ct−1 + it ◦ gt
+ot = σ(Wxo ∗ ˆXt + Who ∗ ˆHt−1 + bo)
+Ht = ot ◦ tanh(Ct),
+
+(1)
+
+where SA denotes the self-attention module. ˆX and ˆH are
+aggregated features through self-attention modules. Specif-
+ically, at each time step, the position at attention mod-
+ule selectively aggregates the input feature at each posi-
+tion by a weighted sum of the feature at all positions. This
+makes the global spatial dependencies can be captured dur-
+ing propagation cross stacked RNN layers vertically and
+through all RNN states horizontally. However, self-attention
+has very high computational complexity in high-resolution
+input since it needs to calculate the correlation among all
+positions. In this work, the size of images is small such that
+the complexity of SA can be ignored to a certain extent.
+
+Self-Attention. Figure 1 shows the pipeline of the stan-
+dard self-attention module. The original feature maps Ht are
+mapped into different feature spaces as the query: Qh =
+WqHt ∈ R ˆC×N , the key: Kh = WkHt ∈ R ˆC×N and the
+value: Vh = WvHt ∈ RC×N , where {Wq, Wk, Wv} is a
+
+11532
+
+Wq
+Transpose
+
+Qc
+
+Softmax
+
+Whv
+
+Whk
+
+Ht
+
+Kh
+
+Ht
+
+Wk
+
+Kh
+
+Wf
+
+ˆHt
+
+Wv
+
+Vh
+
+Mt−1
+
+Whq
+Transpose
+
+Qh
+
+Km
+
+Wmk
+
+Wmv
+
+Softmax
+
+Softmax
+
+Vh
+
+Vm
+
+Ah
+
+Am
+
+Zh
+
+Zm
+
+Wmo
+
+σ
+
+Wz
+
+Z
+
+(cid:19)
+
+(cid:19)
+
+Wmg
+
+tanh
+
+Wmi
+
+σ
+
+1−
+
+ˆHt
+
+Mt
+
+(cid:2)(cid:3)(cid:4)(cid:5)(cid:6)(cid:7)(cid:8)(cid:8)(cid:3)(cid:9)(cid:8)(cid:10)(cid:11)(cid:9)(cid:12)(cid:13)(cid:11)(cid:14)(cid:15)(cid:4)(cid:3)
+
+(cid:2)(cid:3)(cid:4)(cid:5)(cid:6)(cid:7)(cid:8)(cid:8)(cid:3)(cid:9)(cid:8)(cid:10)(cid:11)(cid:9)(cid:12)(cid:13)(cid:3)(cid:16)(cid:11)(cid:17)(cid:18)(cid:12)(cid:13)(cid:11)(cid:14)(cid:15)(cid:4)(cid:3)
+
+: Duplication
+
+: Matrix Multiplication
+
+(cid:19) : Channel Concat
+
+: Element-Wise Addition
+
+: Element-Wise Product
+
+Figure 1: The illustration of the standard self-attention module and the proposed self-attention memory module, or SAM in
+short. In the self-attention module, Ht is the hidden state in ConvLSTM at the time step t, Qh is the query, Kh indicates the
+key, Vh represents the value based on the 1 × 1 convolution on the feature, and ˆHt is the output. As for the proposed SAM,
+the aggregated feature Zh is obtained by applying self-attention on Ht and another feature Zm, where Zm is calculated by
+querying on Km and visiting Vm. Here, both of Km and Vm are mappings of the memory Mt−1. Zh and Zm are fused as Z
+by 1 × 1 convolution. Then Z and original input Ht is used to update the memory with a gating mechanism. The ﬁnal output is
+a dot product between the output gate value and the updated memory Mt.
+
+set of weights for 1 × 1 convolutions, C and ˆC are number
+of channels, and where N = H × W .
+
+The similarity scores of each pair of points are calculated
+
+by applying the matrix production as:
+
+e = QT
+h
+
+Kh ∈ RN ×N .
+
+(2)
+
+The similarity between the i-th point and the j-th point
+can be indexed as ei,j = (HT
+)(WkHt,j) where the
+t,i
+Ht,i and the Ht,j are feature vectors with the shape C × 1.
+Then, the similarity scores are normalized along columns:
+
+WT
+q
+
+αi,j =
+
+(cid:2)
+
+exp ei,j
+N
+k=1 exp ei,k
+
+, i, j ∈ {1, 2, ..., N }.
+
+(3)
+
+The aggregated feature of the i-th location is calculated
+
+with a weighted sum across all locations:
+
+Zi =
+
+N(cid:3)
+
+j=1
+
+αi,j(WvHt;j),
+
+(4)
+
+where WvHt,j ∈ RC×1 is the j-th column of the value
+Vh. The output is obtained with a shortcut connection ˆHt =
+Wf Z + Ht. Here, the residual mechanism stables the model
+training and ensures the module is ﬂexible to be embedded
+into other deep models.
+
+3.2 Self-Attention Memory Module
+We argue that the prediction of the current time step can
+beneﬁt from the past relevant features. Therefore, we pro-
+pose a self-attention memory module by constructing a new-
+designed memory unit M with the self-attention mecha-
+nism. We use the proposed memory unit to represent the
+general spatiotemporal information which has the global
+spatial and temporal receptive ﬁeld.
+
+The structure of the proposed self-attention memory is il-
+lustrated in Figure 1. Our self-attention memory block re-
+ceives two inputs, the input feature Ht at the current time
+step and the memory Mt−1 at the last step. The whole
+pipeline can be separated into three parts, the feature aggre-
+gation to obtain the global context information, the memory
+updating and the output.
+Feature Aggregation. At each time step, the aggregated fea-
+ture Z is the fusion of Zh and Zm. Zh is acquired in the same
+way as the self-attention described in the section 3.1. Zm
+is aggregated by querying on memory at the last time step
+Mt−1. The memory is mapped into key Km ∈ R ˆC×N and
+value Vm ∈ RC×N by 1 × 1 convolutions through weights
+Wmk and Wmv. Then, similarity scores between the input
+and the memory are calculated by the matrix multiplication
+between the query Qh and the key Km:
+
+em = QT
+h
+
+Km ∈ RN ×N .
+
+(5)
+
+Similar to Equation 3, all weights which are used for aggre-
+gating features are obtained by applying SoftMax function
+along each row, same as the Eq. 3:
+
+αm;i,j =
+
+(cid:2)
+
+exp em;i,j
+N
+k=1 exp em;i,k
+
+, i, j ∈ {1, 2, ..., N }.
+
+(6)
+
+Then, the ‘pixel’ of i-th location in feature Zm is calcu-
+lated by a weighted sum across all N locations in value Vm.
+
+Zm;i =
+
+N(cid:3)
+
+j=1
+
+αm;i,jVm;j =
+
+N(cid:3)
+
+j=1
+
+αm;i,jWmvMt−1;j,
+
+(7)
+
+where Mt−1;j is the j-the column of the memory. Fi-
+nally, the aggregated feature Z can be obtained with Z =
+Wz[Zh; Zm].
+
+11533
+
+Memory Updating. We adopt a gating mechanism to update
+the memory M adaptively, such that the SAM can capture
+long-range dependencies in terms of spatial and temporal
+domains. The aggregated feature Z and the original input Ht
+are used to produce values of the input gate i
+t and the fused
+feature g
+t to
+reduce parameters. The updating progress can be formulated
+as follows:
+
+t. Besides, the forget gate is replaced as 1 − i
+
+(cid:2)
+
+(cid:2)
+
+(cid:2)
+
+(cid:2)
+
+t
+(cid:2)
+
+t
+
+i
+
+g
+
+= σ(Wm;zi ∗ Z + Wm;hi ∗ Ht + bm;i)
+= tanh(Wm;zg ∗ Z + Wm;hg ∗ Ht + bm;g)
+
+(8)
+
+Mt = (1 − i
+
+(cid:2)
+
+t
+
+) ◦ Mt−1 + i
+
+(cid:2)
+
+t
+
+◦ g
+
+(cid:2)
+
+t
+
+Here, to further reduce parameters and computation, we re-
+place the standard operation with depth-wise separable con-
+volution (Chollet 2017). Compared with the original mem-
+ory cell C in the ConvLSTM which is updated by convolu-
+tion operations only, the proposed memory M is updated by
+not only convolution operations but also aggregated features
+Zt, obtaining the global spatial dependency timely. There-
+fore, we argue that Mt−1 is able to contain global past spa-
+tiotemporal information.
+Output. Finally, the output feature ˆHt of the self-attention
+memory module is a dot product between the output gate
+t and updated memory Mt, which can be formulated as
+o
+follows:
+
+(cid:2)
+
+= σ(Wm;zo ∗ Z + Wm;ho ∗ Ht + bm;o)
+
+(cid:2)
+
+t
+
+o
+ˆHt = o
+
+(cid:2)
+
+t
+
+◦ Mt
+
+3.3 Self-Attention ConvLSTM
+
+Ct−1
+
+ˆHt−1
+
+Xt
+
+Mt−1
+
+σ
+Wf
+
+(cid:2)
+
+σ
+Wi
+(cid:2)
+
+tanh
+
+Wg
+
+(cid:2)
+(cid:2)
+
+(cid:2)(cid:3)(cid:4)(cid:2)(cid:5)(cid:6)(cid:7)(cid:8)(cid:2)(cid:9)(cid:13)
+
+Wo
+
+(cid:2)
+
+σ
+
+tanh
+
+Ht
+
+(cid:2)(cid:3)(cid:13)
+
+(9)
+
+Ct
+
+ˆHt
+
+Mt
+
+: Duplication (cid:2) : Channel Concat
+
+: Element-Wise Product
+
+: Element-Wise Addition
+
+Figure 2: The self-attention ConvLSTM (SA-ConvLSTM)
+block. The SAM is the self-attention memory which is de-
+tailed in Figure 1.
+
+We embed the self-attention memory module into the
+ConvLSTM to construct the SA-ConvLSTM, as illustrated
+in Figure 2. If we remove the SAM module, the SA-
+ConvLSTM will degenerate into the standard ConvLSTM.
+Besides, it is ﬂexible to embedded in other models.
+
+4 Experiments
+We make the spatiotemporal prediction on three commonly
+used datasets, including the MovingMNIST and KTH for
+
+11534
+
+multi-frame prediction, and the TexiBJ for the trafﬁc ﬂow
+prediction. To demonstrate the effect of the proposed mem-
+ory unit and the self-attention mechanisms, we ﬁrst carry
+out an ablation study on the MovingMNIST and the TexiBJ,
+which is detailed in Section 4.3. Then, we show the quanti-
+tative results on each dataset in Section 4.4. We also provide
+the visualization examples to demonstrate the superiority of
+proposed SA-ConvLSTM on the spatiotemporal prediction.
+Moreover, to explain the effect of self-attention mechanism
+in the proposed SA-ConvLSTM, we visualize the attention
+maps from the ﬁrst and last layers.
+
+Implementation
+
+4.1
+To make fair comparisons with previous work (Shi et al.
+2015; Wang et al. 2017b; 2018b; 2019; Xu et al. 2018),
+we apply almost the same experiment setting, that is, a 4-
+layer architecture with 64 hidden states in each layer for ev-
+ery model. The scheduled sampling strategy (Bengio et al.
+2015) and LayerNorm (Ba, Kiros, and Hinton 2016) are also
+adopted in the training process. Each model is trained with
+an ADAM optimizer and a beginning learning rate of 0.001.
+During training, the mini-batch is set to 8, and the training
+process is stopped after 80,000 iterations. We use L2 loss for
+the MovingMNIST and the TaxiBJ datasets, while L1 + L2
+loss for the KTH dataset.
+
+4.2 Datasets
+MovingMNIST is a commonly used dataset contains a va-
+riety of sequences generated by the method mentioned in
+(Srivastava et al. 2015), depicting two potentially overlap-
+ping digits moving with constant velocity and bouncing off
+the image edges. Image size is 64×64×1, and each sequence
+contains 20 frames with 10 inputs and 10 for prediction.
+TaxiBJ is collected from the chaotic real-world environ-
+ment and contains trafﬁc ﬂow images collected consecu-
+tively from the GPS monitors of taxicabs in Beijing. Each
+frame in TaxiBJ is a 32 × 32 × 2 grid of image. Two chan-
+nels represent the trafﬁc ﬂow entering and leaving the same
+district at this time. We use 4 known frames to predict the
+next 4 frames (trafﬁc conditions for the next two hours).
+KTH (Schuldt et al. 2004) contains 6 categories of hu-
+man actions, including boxing, hand waving, hand clap-
+ping, walking, jogging and running, completed by 25 peo-
+ple in 4 different scenarios. We follow the setup in previ-
+ous works (Oliu et al. 2018; Zhang et al. 2016; Wang et
+al. 2017a; 2018b; 2019) to construct the training and testing
+sets. Image size are resized from 320 × 240 to 128 × 128. 10
+frames are used to predict the next 10 frames during training
+and 20 frames at inference.
+
+4.3 Ablation Study
+We perform an ablation study on the MovingMNIST and
+the TexiBJ to evaluate models on the different types of data.
+The motion change in the MovingMNIST is smooth; there-
+fore, performing predictions on this dataset requires accurate
+modeling of local dynamics. In contrast, the TexiBJ uses the
+evolution of pixel value to represent trafﬁc ﬂow variation.
+Thus, the TexiBJ has more long-range spatial dependencies
+than the MovingMNIST.
+
+Table 1: Ablation study on the MovingMNIST and the TexiBJ datasets. We use SSIM, MSE, MAE to measure the prediction
+quality. ConvLSTM is the baseline model, and four variants are evaluated, including the base model in Section 3.1, ConvLSTM
+with additional memory, and SA-ConvLSTM with or without Zm in Figure 1.
+
+Datasets
+Models
+
+SSIM↑ Δ
+–
+0.852
+ConvLSTM
+w SA, w/o Mem
++0.017
+0.869
+w/o SA, w Mem
++0.020
+0.872
+w SA, w Mem, w/o Zm 0.884
++0.032
+w SA, w Mem, w Zm
++0.061
+0.913
+
+MovingMNIST
+MSE↓ Δ
+–
+63.98
+-5.73
+58.25
+-7.81
+56.17
+-8.38
+55.60
+-20.06
+43.92
+
+MAE↓ Δ
+–
+133.34
+-15.26
+118.08
+-19.32
+114.02
+-20.15
+113.19
+-38.61
+94.73
+
+SSIM↑ Δ
+–
+0.979
++0.003
+0.982
++0.003
+0.982
++0.003
+0.982
++0.005
+0.984
+
+TexiBJ
+MSE↓ Δ
+–
+0.527
+-0.117
+0.410
+-0.096
+0.431
+-0.119
+0.408
+-0.137
+0.390
+
+MAE↓ Δ
+–
+4.253
+-0.372
+3.881
+-0.305
+3.948
+-0.381
+3.872
+-0.431
+3.822
+
+To verify the effectiveness of the self-attention and the ad-
+ditional memory M, we apply ﬁve different models, includ-
+ing 1) the standard 4-layer ConvLSTM, 2) the base model
+which is constructed as in Figure 2 with self-attention, 3)
+the ConvLSTM with additional memory cell M but without
+the self-attention part, and 4) the SA-ConvLSTM without
+Zm in Figure 1, 5) the complete SA-ConvLSTM, as illus-
+trated as in Figure 2. We Adopt the SSIM (structural similar-
+ity Index Measure) (Wang et al. 2004), MSE (Mean Square
+Error) and MAE (Mean Absolute Error) as metrics, where
+MSE and MAE measure the pixel-level differences, which
+are more suitable for synthetic data.
+
+Experimental results are shown in Table 1. Self-attention
+relatively reduces MSE by 9.0% and 22.2% on MovingM-
+NIST and TexiBJ separately. As for the additional mem-
+ory M, the relative reductions are 12.2% and 18.2%. Ad-
+ditional memory is more effective on data with smooth dy-
+namics, while self-attention is more suitable for trafﬁc or
+network ﬂow prediction since it can extract long-range spa-
+tial dependencies. SA-ConvLSTM (w/o Zm) achieves MSE
+reductions by 13.1% and 22.6% on the MovingMNIST and
+the TexiBJ separately. The whole SA-ConvLSTM combines
+both the advantages, which reduces MSE by 32.2% and
+26.0% on these two types of data. Aggregating past features
+from the additional memory with global spatial and tempo-
+ral dependencies is very crucial for SA-ConvLSTM.
+
+4.4 Quantitative and Qualitative Comparison
+MovingMNIST. Quantitative comparisons among different
+models are detailed in Table 2, where the averaged results
+are reported. We apply the PredRNN (Wang et al. 2017a),
+PredRNN++ (Wang et al. 2018b), MIM (Wang et al. 2019)
+and other models as the comparison, where MIM achieves
+the state-of-the-art methods in recent years. All models pre-
+dict the next 10 frames based on 10 previous frames. We
+follow the experiment settings and hyper-parameters of the
+PredRNN, PredRNN++, and MIM for a fair comparison.
+
+Compared to the PredRNN, our base model has fewer pa-
+rameters and achieves comparable results, which shows the
+self-attention boost ConvLSTM to a large extent. Our SA-
+ConvLSTM has a smaller model scale than PredRNN or Pre-
+dRNN++. The parameters of SA-ConvLSTM are even less
+than half of that in the SOTA model MIM or MIM*, where
+MIM* is based on the CausalLSTM (Wang et al. 2018b), in-
+stead of the ConvLSTM. The smaller model scale is due to
+the adoption of depth-wise separable convolution (Chollet
+
+T=2
+
+4
+
+6
+
+8
+
+10
+
+T=12
+
+14
+
+16
+
+18
+
+20
+
+Input
+
+G.T.
+
+Base Model 
+(Ours)
+
+SA-ConvLSTM
+(Ours)
+
+ConvLSTM
+
+FRNN
+
+PredRNN
+
+PredRNN++
+
+MIM
+
+Figure 3: Qualitative comparison of different models on the
+MovingMNIST test set. All models predict 10 frames into
+the future by observing 10 previous frames.
+
+2017) in the proposed self-attention memory, reducing the
+trainable parameters. All of the PredRNN, PredRNN++, and
+MIM rely on convolutions to extract spatial dependencies,
+which is limited and inefﬁcient. In contrast, SA-ConvLSTM
+achieves the best results on all measurements. In particular,
+our model reduces the MAE by 6.4 than MIM*, obtaining
+more accurate and sharper predictions. We also evaluated the
+efﬁciency of each model based on a GTX 1080TI GPU and
+the TensorFlow framework. ConvLSTM costs 0.42s for one
+forward-backward iteration, PredRNN spends 0.66s, MIM
+costs 1.14s, while PredRNN++ and MIM* take longer. Our
+base model costs 0.54s and SA-ConvLSTM costs 0.72s,
+
+11535
+
+Table 2: Qualitative Comparison of different models on the MovingMNIST. All models predict 10 frames into the future by
+observing 10 previous frames. The output frames are shown at two-frame intervals.
+
+Models
+
+FC-LSTM (Srivastava et al. 2015)
+ConvLSTM (Shi et al. 2015)
+TrajGRU (Shi et al. 2017b)
+DFN (Jia et al. 2016)
+FRNN (Oliu et al. 2018)
+VPN baseline (Kalchbrenner et al. 2017)
+PredRNN (Wang et al. 2017a)
+MIM (Wang et al. 2019)
+PredRNN++ (Wang et al. 2018b)
+MIM*
+
+Base Model (Ours)
+SA-ConvLSTM (Ours)
+
+#Params
+
+SSIM↑ Δ
+–
+0.690
+–
++0.017
+0.707
+–
++0.023
+0.713
+–
++0.036
+0.726
+–
++0.123
+0.813
+–
++0.180
+–
+0.870
++0.177
+13.799M 0.867
++0.184
+28.533M 0.874
++0.208
+13.237M 0.898
++0.220
+27.971M 0.910
+
+MSE↓ Δ
+–
+118.3
+-15.0
+103.3
+-11.4
+106.9
+-28.3
+89.0
+-48.6
+69.7
+-54.2
+64.1
+-61.5
+56.8
+-66.3
+52.0
+-71.8
+46.5
+-74.1
+44.2
+
+MAE↓ Δ
+–
+209.4
+-26.5
+182.9
+-19.3
+190.1
+-36.6
+172.8
+-59.1
+150.3
+-78.4
+131.0
+-83.3
+126.1
+-92.9
+116.5
+-102.6
+106.8
+-108.3
+101.1
+
+10.102M 0.869
+10.471M 0.913
+
++0.179
++0.223
+
+58.3
+43.9
+
+-60.0
+-74.4
+
+118.1
+94.7
+
+-91.3
+-114.7
+
+I
+n
+p
+u
+t
+
+C
+o
+n
+v
+L
+S
+T
+M
+
+|
+
+G
+T
+
+.
+
+.
+
+M
+M
+
+I
+
+|
+
+G
+T
+
+.
+
+.
+
+G
+T
+
+.
+
+.
+
+-
+P
+r
+e
+d
+
+|
+
+B
+a
+s
+e
+
+M
+o
+d
+e
+l
+
+|
+
+(
+
+O
+u
+r
+s
+)
+
+G
+T
+
+.
+
+.
+
+P
+r
+e
+d
+R
+N
+N
+
+|
+
+G
+T
+
+.
+
+.
+
+-
+P
+r
+e
+d
+
+|
+
+-
+
+S
+A
+C
+o
+n
+v
+L
+S
+T
+M
+
+|
+
+(
+
+O
+u
+r
+s
+)
+
+G
+T
+
+.
+
+.
+
+-
+P
+r
+e
+d
+
+|
+
+-
+P
+r
+e
+d
+
+|
+
+-
+P
+r
+e
+d
+
+|
+
+Figure 4: Visualization samples of on the TaxiBJ test set. All models output next 4 frames conditioned on the last 4 frames. The
+absolute differences between predictions and ground truths are shown. The brighter the color, the higher of the absolute errors.
+
+which is around 37% faster than MIM.
+
+The qualitative comparison of each model is visualized in
+Figure 3. The FRNN (Oliu et al. 2018) and ConvLSTM pro-
+duce vaguest results. Results of PredRNN, PredRNN++, and
+MIM are still too blurry to distinguish the digits ’4’ and ’7’.
+Our base model achieves sharp but not very precise predic-
+tions. SA-ConvLSTM achieves the best predictions in terms
+of accuracy and image quality.
+TaxiBJ. Quantitative comparisons on the TaxiBJ test set
+is detailed in Table 3a. Each model predicts the next 4
+frames (trafﬁc conditions for the next two hours) by 4 known
+frames. We adopt the frame-wise MSE as the metric. The vi-
+sualized comparisons are shown in Figure 4, which includes
+both frame and the absolute difference between prediction
+results and the ground truth frame. Besides, the proposed
+SA-ConvLSTM reduces the averaged MSE error by around
+9.3% than the MIM.
+KTH. Table 3b shows quantitative comparisons among pre-
+vious state-of-the-art methods and SA-ConvLSTM on the
+KTH dataset. We use 10 last frames to predict the next 20
+frames. SA-ConvLSTM shows its high efﬁciency and the
+
+ﬂexibility on the KTH dataset. It improves the PSNR of the
+state-of-the-art model by 0.86 and SSIM by 0.026. Our base
+model still achieves comparable results with PredRNN.
+
+The prediction samples on KTH are visualized in Fig-
+ure 5. It is difﬁcult for ConvLSTM to make high-quality pre-
+dictions. The ConvLSTM with self-attention (base model)
+achieves a similar prediction performance as PredRNN.
+Compared to PredRNN, SA-ConvLSTM can provide more
+texture information, such as black pants and a white coat
+in the Figure 5. The prediction errors marked by cir-
+cles and blurry human bodies indicate that ConvLSTM
+and PredRNN cannot maintain accuracy and image qual-
+ity when carrying out long-term prediction. In contrast, SA-
+ConvLSTM can not only keep more texture information but
+also improve prediction accuracy.
+
+4.5 Attention Visualization
+In order to explain the effect of the self-attention mechanism
+in the proposed SA-ConvLSTM, we randomly choose some
+examples from the test set of MovingMNIST and visualize
+the attention maps in Figure 6, where the attention maps are
+
+11536
+
+Table 3: Comparisons to state-of-the-art methods on the TaxiBJ test set (a) and the KTH test set (b) separately.
+
+(a) Per-frame MSE on the TaxiBJ test set. All models predict the next 4 images
+(trafﬁc conditions for the next two hours) via 4 historical trafﬁc ﬂow images.
+
+(b) Comparison of the next 20-frame prediction on the
+KTH test set. PSNR and SSIM are adopted.
+
+Models
+
+ST-ResNet (Zhang et al. 2017)
+VPN (Kalchbrenner et al. 2017)
+FRNN (Oliu et al. 2018)
+PredRNN (Wang et al. 2017a)
+PredRNN++ (Wang et al. 2018b)
+MIM (Wang et al. 2019)
+
+Base Model (Ours)
+SA-ConvLSTM (Ours)
+
+Frame 1↓
+0.460
+0.427
+0.331
+0.318
+0.319
+0.309
+
+0.291
+0.269
+
+Frame 2↓
+0.571
+0.548
+0.416
+0.427
+0.399
+0.390
+
+0.367
+0.356
+
+Frame 3↓
+0.670
+0.645
+0.518
+0.516
+0.500
+0.475
+
+0.460
+0.426
+
+Frame 4↓
+0.762
+0.721
+0.619
+0.595
+0.573
+0.542
+
+0.524
+0.507
+
+Models
+
+ConvLSTM (Shi et al. 2015)
+TrajGRU (Shi et al. 2017b)
+DFN (Jia et al. 2016)
+MCNet (Villegas et al. 2017)
+PredRNN (Wang et al. 2017a)
+PredRNN++ (Wang et al. 2018b)
+
+Base Model (Ours)
+SA-ConvLSTM (Ours)
+
+PSNR↑
+23.58
+26.97
+27.26
+25.95
+27.55
+28.47
+
+27.25
+29.33
+
+SSIM↑
+0.712
+0.790
+0.794
+0.804
+0.839
+0.865
+
+0.837
+0.891
+
+T=2
+
+4
+
+6
+
+8
+
+10
+
+T=2
+
+4
+
+T=12
+
+15
+
+18
+
+21
+
+24
+
+27
+
+30
+
+T=12
+
+15
+
+6
+
+18
+
+8
+
+21
+
+10
+
+24
+
+27
+
+30
+
+Input
+
+G.T.
+
+Base Model
+(Ours)
+
+SA-ConvLSTM
+(Ours)
+
+ConvLSTM
+
+PredRNN
+
+Figure 5: Visualization examples on the KTH test set. Each model predicts the next 20 frames by observing 10 frames. Our
+SA-ConvLSTM can generate the sharpest and the most precise prediction.
+
+from the ﬁrst and last layers by querying a speciﬁc point
+”+”. The area with warmer color has a more relevant rela-
+tionship with the query point. When the ”+” is on the digits,
+the attention is concentrated on the foreground, as shown in
+the “T=13”, “T=19” of the second row and “T=10” of the
+third row. On the contrary, when the query point is on the
+background, most of the weights focus on the background,
+as demonstrate in the “T=1” of the second row and “T=16”
+of the fourth row. The low-level (layer 1) features are shift-
+invariant, such that the background features are basically the
+same, and layer 1 can uniformly attends the background pix-
+els. In contrast, the features of layer 4 have more semantic
+information. Here, the probability of numbers appearing in
+corners is very low in Moving-MNIST. This kind of statis-
+tical prior can be learned by the network. Our SAM learns
+to transform features at corners to background ﬁlters, which
+can be used to construct more accurate foreground or back-
+ground features.
+
+5 Conclusion
+In this paper, we propose the SA-ConvLSTM for spatiotem-
+poral prediction. Since the prediction of the current time
+step can beneﬁt from the past relevant features, we construct
+a self-attention memory module to capture long-range de-
+pendencies in terms of spatial and temporal dimensions. We
+evaluated our models on MovingMNIST and KTH datasets
+
+for the multi-frame prediction and TaxiBJ for the trafﬁc ﬂow
+prediction. Ablation experiments demonstrate the effective-
+ness of self-attention and the additional memory M on dif-
+ferent types of data. The proposed SA-ConvLSTM achieves
+the best results on all datasets with much fewer parame-
+ters and higher efﬁciency than the previous state-of-the-art
+model MIM.
+
+T=1
+
+4
+
+7
+
+10
+
+13
+
+16
+
+19
+
+Layer 1
+
+Layer 4
+
+Layer 1
+
+Layer 4
+
+Figure 6: Visualization of attention maps on the MovingM-
+NIST test set. Attention maps in the 1st and the 4th layers
+are visualized, where ”+” is the querying point. Best view in
+color and warmer color represents the higher correlation.
+
+11537
+
+Acknowledgments
+This work is supported by NSFC project Grant No.
+U1833101, Shenzhen Science and Technologies project un-
+der Grant No. JCYJ20160428182137473 and the Joint Re-
+search Center of Tencent & Tsinghua.
+
+References
+Ba, J. L.; Kiros, J. R.; and Hinton, G. E. 2016. Layer nor-
+malization. arXiv preprint arXiv:1607.06450.
+Bengio, Y.; Simard, P.; Frasconi, P.; et al. 1994. Learn-
+ing long-term dependencies with gradient descent is difﬁ-
+cult. IEEE transactions on neural networks 5(2):157–166.
+Bengio, S.; Vinyals, O.; Jaitly, N.; and Shazeer, N. 2015.
+Scheduled sampling for sequence prediction with recurrent
+neural networks. In NIPS 2015, 1171–1179.
+Bianchini, M., and Scarselli, F. 2014. On the complexity
+of neural network classiﬁers: A comparison between shal-
+low and deep architectures.
+IEEE transactions on neural
+networks and learning systems 25(8):1553–1565.
+Chen, Y.; Kalantidis, Y.; Li, J.; Yan, S.; and Feng, J. 2018.
+Aˆ 2-nets: Double attention networks. In NIPS 2018, 352–
+361.
+Chollet, F. 2017. Xception: Deep learning with depthwise
+separable convolutions. In CVPR 2017, 1251–1258.
+Dai, J.; Qi, H.; Xiong, Y.; Li, Y.; Zhang, G.; Hu, H.; and
+Wei, Y. 2017. Deformable convolutional networks. In ICCV
+2017.
+Finn, C.; Goodfellow, I.; and Levine, S. 2016. Unsupervised
+learning for physical interaction through video prediction. In
+NIPS 2016, 64–72.
+Fu, J.; Liu, J.; Tian, H.; Fang, Z.; and Lu, H. 2019. Dual
+attention network for scene segmentation. In CVPR 2019.
+Huang, Z.; Wang, X.; Huang, L.; Huang, C.; Wei, Y.; and
+Liu, W. 2019. Ccnet: Criss-cross attention for semantic
+segmentation. In ICCV 2019.
+Jia, X.; De Brabandere, B.; Tuytelaars, T.; and Gool, L. V.
+2016. Dynamic ﬁlter networks. In NIPS 2016, 667–675.
+Kalchbrenner, N.; Oord, A.; Simonyan, K.; Danihelka, I.;
+Vinyals, O.; Graves, A.; and Kavukcuoglu, K. 2017. Video
+pixel networks. In ICML 2017, 1771–1779.
+Lerer, A.; Gross, S.; and Fergus, R. 2016. Learning physical
+intuition of block towers by example. In ICML 2016, 430–
+438.
+Luo, W.; Li, Y.; Urtasun, R.; and Zemel, R. 2016. Under-
+standing the effective receptive ﬁeld in deep convolutional
+neural networks. In NIPS 2016, 4898–4906.
+Oliu, M.; Selva, J.; Escalera, S.; and Escalera, S. 2018.
+Folded recurrent neural networks for future video prediction.
+In ECCV 2018, 716–731.
+Pascanu, R.; Mikolov, T.; and Bengio, Y. 2013. On the
+difﬁculty of training recurrent neural networks.
+In ICML
+2013, 1310–1318.
+Schuldt, C.; Laptev, I.; Caputo, B.; and Caputo, B. 2004.
+Recognizing human actions: a local svm approach. In ICPR
+2004, volume 3, 32–36.
+
+Shi, X.; Chen, Z.; Wang, H.; Yeung, D.-Y.; Wong, W.-K.;
+and Woo, W.-c. 2015. Convolutional lstm network: A ma-
+In
+chine learning approach for precipitation nowcasting.
+NIPS 2015, 802–810.
+Shi, X.; Gao, Z.; Lausen, L.; Wang, H.; Yeung, D.-Y.; Wong,
+W.-k.; and Woo, W.-c. 2017a. Deep learning for precipita-
+tion nowcasting: A benchmark and a new model. In NIPS
+2017, 5622–5632.
+Shi, X.; Gao, Z.; Lausen, L.; Wang, H.; Yeung, D.-Y.; Wong,
+W.-k.; and Woo, W.-c. 2017b. Deep learning for precipita-
+tion nowcasting: A benchmark and a new model. In NIPS
+2017, 5617–5627.
+Srivastava, N.; Mansimov, E.; Salakhudinov, R.; Salakhudi-
+nov, R.; and Salakhudinov, R. 2015. Unsupervised learning
+of video representations using lstms. In ICML 2015, 843–
+852.
+Vaswani, A.; Shazeer, N.; Parmar, N.; Uszkoreit, J.; Jones,
+L.; Gomez, A. N.; Kaiser, Ł.; and Polosukhin, I. 2017. At-
+tention is all you need. In NIPS 2017, 5998–6008.
+Villegas, R.; Yang, J.; Hong, S.; Lin, X.; and Lee, H. 2017.
+Decomposing motion and content for natural video sequence
+prediction. arXiv preprint arXiv:1706.08033.
+Wang, Z.; Bovik, A. C.; Sheikh, H. R.; and Simoncelli, E. P.
+Image quality assessment: from error visibility to
+2004.
+structural similarity. IEEE transactions on image process-
+ing 13(4):600–612.
+Wang, Y.; Long, M.; Wang, J.; Gao, Z.; and Philip, S. Y.
+2017a. Predrnn: Recurrent neural networks for predictive
+In NIPS 2017, 879–
+learning using spatiotemporal lstms.
+888.
+Wang, Y.; Long, M.; Wang, J.; Gao, Z.; and Philip, S. Y.
+2017b. Predrnn: Recurrent neural networks for predictive
+In NIPS 2017, 879–
+learning using spatiotemporal lstms.
+888.
+Wang, X.; Girshick, R.; Gupta, A.; and He, K. 2018a. Non-
+local neural networks. In CVPR 2018, 7794–7803.
+Wang, Y.; Gao, Z.; Long, M.; Wang, J.; and Philip, S. Y.
+2018b. Predrnn++: Towards a resolution of the deep-in-time
+dilemma in spatiotemporal predictive learning.
+In ICML
+2018, 5110–5119.
+Wang, Y.; Zhang, J.; Zhu, H.; Long, M.; Wang, J.; and Yu,
+P. S. 2019. Memory in memory: A predictive neural network
+for learning higher-order non-stationarity from spatiotempo-
+ral dynamics. In CVPR 2019, 9154–9162.
+Xu, Z.; Wang, Y.; Long, M.; and Wang, J. 2018. Pred-
+cnn: predictive learning with cascade convolutions. In IJCAI
+2018, 2940–2947.
+Zhang, J.; Zheng, Y.; Qi, D.; Li, R.; and Yi, X. 2016. Dnn-
+based prediction model for spatio-temporal data.
+In ACM
+SIGSPATIAL 2016, 92.
+Zhang, J.; Zheng, Y.; Qi, D.; and Qi, D. 2017. Deep spatio-
+temporal residual networks for citywide crowd ﬂows predic-
+tion. In AAAI 2017.
+Zhang, H.; Goodfellow, I.; Metaxas, D.; and Odena, A.
+2019. Self-attention generative adversarial networks.
+In
+ICML 2019, 7354–7363.
+
+11538
+

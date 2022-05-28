@@ -1,0 +1,1492 @@
+2017 IEEE Conference on Computer Vision and Pattern Recognition
+
+Geometric deep learning on graphs and manifolds using mixture model CNNs
+
+Federico Monti1∗
+Emanuele Rodol`a1
+
+Davide Boscaini1∗
+Jan Svoboda1
+
+Jonathan Masci1,4
+Michael M. Bronstein1,2,3
+
+1USI Lugano
+
+2Tel Aviv University
+
+3Intel Perceptual Computing
+
+4Nnaisense
+
+Abstract
+
+keen interest in geometric deep learning [10] attempting to
+generalize such methods to non-Euclidean structured data.
+
+Deep learning has achieved a remarkable performance
+breakthrough in several ﬁelds, most notably in speech
+recognition, natural language processing, and computer vi-
+sion. In particular, convolutional neural network (CNN) ar-
+chitectures currently produce state-of-the-art performance
+on a variety of image analysis tasks such as object detec-
+tion and recognition. Most of deep learning research has
+so far focused on dealing with 1D, 2D, or 3D Euclidean-
+structured data such as acoustic signals, images, or videos.
+Recently, there has been an increasing interest in geomet-
+ric deep learning, attempting to generalize deep learning
+methods to non-Euclidean structured data such as graphs
+and manifolds, with a variety of applications from the do-
+mains of network analysis, computational social science,
+In this paper, we propose a uni-
+or computer graphics.
+ﬁed framework allowing to generalize CNN architectures to
+non-Euclidean domains (graphs and manifolds) and learn
+local, stationary, and compositional task-speciﬁc features.
+We show that various non-Euclidean CNN methods previ-
+ously proposed in the literature can be considered as par-
+ticular instances of our framework. We test the proposed
+method on standard tasks from the realms of image-, graph-
+and 3D shape analysis and show that it consistently outper-
+forms previous approaches.
+
+1. Introduction
+
+In recent years, increasingly more ﬁelds have to deal
+with geometric non-Euclidean structured data such as man-
+ifolds or graphs. Social networks are perhaps the most
+prominent example of such data; additional examples in-
+clude transportation networks, sensor networks, functional
+networks representing anatomical and functional structure
+of the brain, and regulatory networks modeling gene expres-
+sions.
+In computer graphics, 3D objects are traditionally
+modeled as Riemannian manifolds. The success of deep
+learning methods in many ﬁelds has recently provoked a
+
+∗Equal contribution
+
+1.1. Related works
+
+Deep learning on graphs. The earliest attempts to gener-
+alize neural networks to graphs we are aware of are due to
+Scarselli et al. [16, 31]. This work remained practically un-
+noticed and has been rediscovered only recently [24, 37].
+The interest in non-Euclidean deep learning has recently
+surged in the computer vision and machine learning com-
+munities after the seminal work of Bruna et al. [11, 18], in
+which the authors formulated CNN-like [23] deep neural ar-
+chitectures on graphs in the spectral domain, employing the
+analogy between the classical Fourier transforms and pro-
+jections onto the eigenbasis of the graph Laplacian operator
+[33]. In a follow-up work, Defferrard et al. [13] proposed
+an efﬁcient ﬁltering scheme that does not require explicit
+computation of the Laplacian eigenvectors by using recur-
+rent Chebyshev polynomials. Kipf and Welling [21] further
+simpliﬁed this approach using simple ﬁlters operating on
+1-hop neighborhoods of the graph. Similar methods were
+proposed in [3] and [15]. Finally, in the network analysis
+community, several works constructed graph embeddings
+[28, 38, 12, 17, 44] methods inspired by the Word2Vec tech-
+nique [27].
+
+A key criticism of spectral approaches such as [11, 18,
+13] is the fact that the spectral deﬁnition of convolution
+is dependent on the Fourier basis (Laplacian eigenbasis),
+which in turn is domain-dependent. It implies that a spec-
+tral CNN model learned on one graph cannot be trivially
+transferred to another graph with a different Fourier basis,
+as it would be expressed in a ‘different language’.
+
+In the computer graphics
+Deep learning on manifolds.
+community, we can notice a parallel effort of generalizing
+deep learning architectures to 3D shapes modeled as mani-
+folds (surfaces). Masci et al. [26] proposed the ﬁrst intrinsic
+version of convolutional neural networks on manifolds ap-
+plying ﬁlters to local patches represented in geodesic polar
+coordinates. Boscaini et al. [7] used anisotropic heat ker-
+nels [1] as an alternative way of extracting intrinsic patches
+
+1063-6919/17 $31.00 © 2017 IEEE
+DOI 10.1109/CVPR.2017.576
+
+5425
+
+on manifolds. In [6], the same authors proposed a CNN-
+type architecture in the spatio-frequency domain using the
+windowed Fourier transform formalism [34]. Sinha et al.
+[35] used geometry images representation to obtain a Eu-
+clidean parametrization of 3D shapes on which standard
+CNNs can be applied.
+
+The key advantage of spatial techniques is that they gen-
+eralize across different domains, which is a crucial property
+in computer graphics applications (where a CNN model can
+be trained on one shape and applied to another one). How-
+ever, while spatial constructions such as anisotropic heat
+kernels have a clear geometric interpretation on manifolds,
+their interpretation on general graphs is somewhat elusive.
+
+1.2. Main contribution
+
+In this paper, we present mixture model networks
+(MoNet), a general framework allowing to design convo-
+lutional deep architectures on non-Euclidean domains such
+as graphs and manifolds. Our approach follows the general
+philosophy of spatial-domain methods such as [26, 7, 3],
+formulating convolution-like operations as template match-
+ing with local intrinsic ‘patches’ on graphs or manifolds.
+The key novelty is in the way in which the patch is ex-
+tracted: while previous approaches used ﬁxed patches, e.g.
+in geodesic or diffusion coordinates, we use a parametric
+In particular, we show that patch operators
+construction.
+can be constructed as a function of local graph or man-
+ifold pseudo-coordinates, and study a family of functions
+represented as a mixture of Gaussian kernels. Such a con-
+struction allows to formulate previously proposed Geodesic
+CNN (GCNN) [26] and Anisotropic CNN (ACNN) [7] on
+manifolds or GCN [21] and DCNN [3] on graphs as partic-
+ular instances of our approach.
+
+Among applications on which we exemplify our ap-
+proach are classical problems from the realms of image-,
+graph- and 3D- shape analysis. In the ﬁrst class of prob-
+lems, the task is to classify images, treated as adjacency
+graphs of superpixels. In the second class of problems, we
+perform vertex-wise classiﬁcation on a graph representing
+a citation network of scientiﬁc papers. Finally, we consider
+the problem of ﬁnding dense intrinsic correspondence be-
+In all the above
+tween 3D shapes, treated as manifolds.
+problems, we show that our approach consistently outper-
+forms previously proposed non-Euclidean deep learning
+methods. Due to space limitations, additional results and
+ﬁgures are presented in the Supplementary Materials.
+
+2. Deep learning on graphs
+
+Let G = ({1, . . . , n}, E, W) be an undirected weighted
+graph, represented by the adjacency matrix W = (wij),
+where wij = wji, wij = 0 if (i, j) /∈ E and wij > 0
+if (i, j) ∈ E. The (unnormalized) graph Laplacian is an
+
+n×n symmetric positive-semideﬁnite matrix Δ = D−W,
+(cid:4)
+where D = diag
+
+is the degree matrix.
+
+(cid:2)(cid:3)
+
+j(cid:2)=i wij
+
+(cid:3)
+
+The Laplacian has an eigendecomposition Δ = ΦΛΦ
+
+,
+1, . . . φn) are the orthonormal eigenvectors
+where Φ = (φ
+and Λ = diag(λ1, . . . , λn) is the diagonal matrix of cor-
+responding eigenvalues. The eigenvectors play the role of
+Fourier atoms in classical harmonic analysis and the eigen-
+values can be interpreted as frequencies. Given a signal
+f = (f1, . . . , fn)(cid:3) on the vertices of graph G, its graph
+Fourier transform is given by ˆf = Φ
+f . Given two signals
+f , g on the graph, their spectral convolution can be deﬁned
+as the element-wise product of the Fourier transforms,
+
+(cid:3)
+
+f (cid:3) g = Φ(Φ
+
+(cid:3)
+
+f ) ◦ (Φ
+
+(cid:3)
+
+g) = Φ diag(ˆg1, . . . , ˆgn)ˆf ,
+
+(1)
+
+which corresponds to the property referred to as the Convo-
+lution Theorem in the Euclidean case.
+
+Spectral CNN. Bruna et al. [11] used the spectral deﬁnition
+of convolution (1) to generalize CNNs on graphs, with a
+spectral convolutional layer of the form
+
+f out
+l = ξ
+
+(cid:5)
+
+p(cid:6)
+
+l(cid:2)=1
+
+(cid:7)
+
+Φk ˆGl,l(cid:2) Φ
+
+(cid:3)
+k f in
+l(cid:2)
+
+.
+
+(2)
+
+1
+
+Here the n × p and n × q matrices Fin = (f in
+1 , . . . , f in
+p )
+and Fout = (f out
+, . . . , f out
+) represent respectively the p-
+q
+and q-dimensional input and output signals on the vertices
+1, . . . , φk) is an n × k matrix of
+of the graph, Φ = (φ
+the ﬁrst eigenvectors, ˆGl,l(cid:2) = diag(ˆgl,l(cid:2),1, . . . , ˆgl,l(cid:2),k) is a
+k × k diagonal matrix of spectral multipliers representing
+a learnable ﬁlter in the frequency domain, and ξ is a non-
+linearity (e.g. ReLU) applied on the vertex-wise function
+values. The analogy of pooling in this framework is a graph
+coarsening procedure, which, given a graph with n vertices,
+produces a graph with n(cid:4) < n vertices and transfers signals
+from the vertices of the ﬁne graph to those of the coarse one.
+While conceptually important, this framework has sev-
+eral major drawbacks. First, the spectral ﬁlter coefﬁcients
+are basis dependent, and consequently, a spectral CNN
+model learned on one graph cannot be applied to another
+graph. Second, the computation of the forward and inverse
+graph Fourier transform incurs expensive O(n2) multipli-
+(cid:3)
+cation by the matrices Φ, Φ
+, as there is no FFT-like algo-
+rithms on general graphs. Third, there is no guarantee that
+the ﬁlters represented in the spectral domain are localized in
+the spatial domain; assuming k = O(n) eigenvectors of the
+Laplacian are used, a spectral convolutional layer requires
+pqk = O(n) parameters to train.
+
+Smooth Spectral CNN. In a follow-up work, Henaff et al.
+[18] argued that smooth spectral ﬁlter coefﬁcients result in
+spatially-localized ﬁlters and used parametric ﬁlters of the
+
+5426
+
+form
+
+r(cid:6)
+
+ˆgi =
+
+αjβj(λi),
+
+(3)
+
+j=1
+
+where β1(λ), . . . , βr(λ) are some ﬁxed interpolation ker-
+nels, and α = (α1, . . . , αr) are the interpolation co-
+efﬁcients.
+In matrix notation, the ﬁlter is expressed as
+diag( ˆG) = Bα, where B = (bij) = (βj(λi)) is a k×r ma-
+trix. Such a parametrization results in ﬁlters with a number
+of parameters constant in the input size n.
+
+Chebyshev Spectral CNN (ChebNet). In order to allevi-
+ate the cost of explicitly computing the graph Fourier trans-
+form, Defferrard et al. [13] used an explicit expansion in the
+Chebyshev polynomial basis to represent the spectral ﬁlters
+
+gα(Δ) =
+
+r−1(cid:6)
+
+j=0
+
+αjTj( ˜Δ) =
+
+r−1(cid:6)
+
+j=0
+
+(cid:3)
+αjΦTj( ˜Λ)Φ
+
+,
+
+(4)
+
+where ˜Δ = 2λ−1
+n Δ − I is the rescaled Laplacian such that
+its eigenvalues ˜Λ = 2λ−1
+n Λ − I are in the interval [−1, 1],
+α is the r-dimensional vector of polynomial coefﬁcients
+parametrizing the ﬁlter, and
+
+Tj(λ) = 2λTj−1(λ) − Tj−2(λ),
+
+(5)
+
+denotes the Chebyshev polynomial of degree j deﬁned in a
+recursive manner with T1(λ) = λ and T0(λ) = 1.
+
+Such an approach has several important advantages.
+First, it does not require an explicit computation of the
+Laplacian eigenvectors. Due to the recursive deﬁnition of
+the Chebyshev polynomials, the computation of the ﬁlter
+gα(Δ)f entails applying the Laplacian r times, resulting
+in O(rn) operations. Second, since the Laplacian is a lo-
+cal operator affecting only 1-hop neighbors of a vertex and
+accordingly its (r − 1)st power affects the r-hop neighbor-
+hood, the resulting ﬁlters are localized.
+
+Graph convolutional network (GCN). Kipf and Welling
+[21] considered the construction of [13] with r = 2,
+which, under the additional assumption of λn ≈ 2, and
+α = α0 = −α1 yields single-parametric ﬁlters of the form
+gα(f ) = α(I + D−1/2WD−1/2)f . Such a ﬁlter is numeri-
+cally unstable since the maximum eigenvalue of the matrix
+I + D−1/2WD−1/2 is 2; a renormalization
+
+gα(f ) = α ˜D
+
+−1/2f ,
+
+(6)
+
+−1/2 ˜W ˜D
+(cid:3)
+
+with ˜W = W + I and ˜D = diag(
+j(cid:2)=i ˜wij) is introduced
+by the authors in order to cure such problem and allow mul-
+tiple convolutional levels to be casted one after the other.
+
+is given by P = D−1W. Different features are pro-
+duced by applying diffusion of different length (the powers
+P0, . . . , Pr−1),
+
+f out
+l,j = ξ(wljP
+
+j
+
+f in
+l ),
+
+where the n × p and n × pr matrices Fin = (f in
+1 , . . . , f in
+p )
+and Fout = (f out
+1,1 , . . . , f out
+p,r ) represent the p- and pr-
+dimensional input and output signals on the vertices of the
+graph and W = (wlj) is the p × r matrix of weights.
+
+3. Deep learning on manifolds
+
+Let X be a d-dimensional differentiable manifold, possi-
+bly with boundary ∂X . Around point x ∈ X , the manifold
+is homeomorphic to a d-dimensional Euclidean space re-
+ferred to as the tangent space and denoted by TxX . An
+inner product (cid:5)·, ·(cid:6)TxX : TxX × TxX → R depending
+smoothly on x is called the Riemannian metric. In the fol-
+lowing, we denote by f : X → R smooth real functions
+(scalar ﬁelds) on the manifold. In shape analysis, 3D shapes
+are modeled as 2-dimensional manifolds (surfaces), repre-
+senting the boundaries of 3D volumes.
+
+Geodesic CNN (GCNN). Masci et al. [26] introduced a
+generalization of CNNs on 2-dimensional manifolds, based
+on the deﬁnition of a local charting procedure in geodesic
+polar coordinates [22]. Such a construction, named the
+patch operator
+
+(cid:8)
+
+(D(x)f )(ρ, θ) =
+
+wρ,θ(x, y)f (y)dy
+
+X
+
+maps the values of the function f at a neighborhood of the
+point x ∈ X into the local polar coordinates ρ, θ. Here dy
+denotes the area element induced by the Riemannian metric,
+and wρ,θ(x, y) is a weighting function localized around ρ, θ
+(see examples in Figure 1). D(x)f can be regarded as a
+patch on the manifold; the geodesic convolution
+
+(cid:8)
+
+(cid:8) ρmax
+2π
+
+(f (cid:3)g)(x) = max
+
+Δθ∈[0,2π)
+
+0
+
+0
+
+g(ρ, θ+Δθ)(D(x)f )(ρ, θ)dρdθ,
+
+can be thought of as matching a template g(ρ, θ) with the
+extracted patch at each point, where the maximum is taken
+over all possible rotations of the template in order to re-
+solve the origin ambiguity in the angular coordinate. The
+geodesic convolution is used to deﬁne an analogy of a tra-
+ditional convolutional layer in GCNN, where the templates
+g are learned.
+
+Anisotropic CNN (ACNN). Boscaini et al. [7] considered
+the anisotropic diffusion equation on the manifold
+
+Diffusion CNN (DCNN). A different spatial-domain
+method was proposed by Atwood and Towsley [3], who
+considered a diffusion (random walk) process on the graph.
+The transition probability of a random walk on a graph
+
+ft(x, t) = −divX (A(x)∇X f (x, t)) ,
+
+(7)
+
+where ∇X and divX denote the intrinsic gradient and di-
+vergence, respectively, f (x, t) is the temperature at point
+
+5427
+
+Table 1. Several CNN-type geometric deep learning methods on graphs and manifolds can be obtained as a particular setting of the
+proposed framework with an appropriate choice of the pseudo-coordinates and weight functions in the deﬁnition of the patch operator. x
+denotes the reference point (center of the patch) and y a point within the patch. x denotes the Euclidean coordinates on a regular grid.
+¯α, ¯σρ, ¯σθ and ¯uj, ¯θj, j = 1, . . . , J denote ﬁxed parameters of the weight functions.
+
+Method
+
+Pseudo-coordinates
+
+CNN [23]
+
+Local Euclidean
+
+GCNN [26] Local polar geodesic
+
+ACNN [7]
+
+Local polar geodesic
+
+u(x, y)
+x(x, y) = x(y) − x(x)
+
+ρ(x, y), θ(x, y)
+
+ρ(x, y), θ(x, y)
+
+GCN [21]
+DCNN [3]
+
+Vertex degree
+Transition probability in r hops
+
+deg(x), deg(y)
+p0(x, y), . . . , pr−1(x, y)
+
+(cid:2)
+
+(cid:4)−1
+
+Weight function wj(u), j = 1, . . . , J
+δ(u − ¯uj)
+exp(− 1
+exp(− 1
+(cid:2)
+1 − |1 − 1√
+u1
+id(uj)
+
+¯σ2
+θ
+1 ) R(cid:3)
+¯θj u)
+1 − |1 − 1√
+u2
+
+2 (u − ¯uj)(cid:3)
+2 u(cid:3)R¯θj ( ¯α
+(cid:4) (cid:2)
+
+¯σ2
+ρ
+
+(cid:4)
+
+|
+
+|
+
+(u − ¯uj))
+
+x and time t, and the conductivity tensor A(x) (operating
+on the gradient vectors in the tangent space TxX ) allows to
+model heat ﬂow that is position- and direction-dependent.
+In particular, they used the 2 × 2 tensor
+(cid:10)
+
+(cid:9)
+
+Aαθ(x) = Rθ(x)
+
+α
+
+1
+
+(cid:3)
+θ (x) ,
+
+R
+
+(8)
+
+where matrix Rθ is a rotation by θ in the tangent plane w.r.t.
+the maximal curvature direction, and the parameter α > 0
+controls the degree of anisotropy (isotropic diffusion is ob-
+tained for α = 1). Using as initial condition f (x, 0) a point
+source of heat at x, the solution to the heat equation (7) is
+given by the anisotropic heat kernel hαθt(x, y), represent-
+ing the amount of heat that is transferred from point x to
+point y at time t. By varying the parameters α, θ and t (con-
+trolling respectively the elongation, orientation, and scale
+of the kernel) one obtains a collection of kernels that can be
+used as weighting functions in the construction of the patch
+operator (see examples in Figure 1). This gives rise to an
+alternative charting to the geodesic patches of GCNN, more
+robust to geometric noise, and more efﬁcient to compute.
+
+Both GCNN and ACNN operate in the spatial domain
+and thus do not suffer from the inherent inability of spec-
+tral methods to generalize across different domains. These
+methods were shown to outperform all the known hand-
+crafted approaches for ﬁnding intrinsic correspondence be-
+tween deformable shapes [26, 7], a notoriously hard prob-
+lem in computer graphics.
+
+4. Our approach
+
+The main contribution of this paper is a generic spatial-
+domain framework for deep learning on non-Euclidean do-
+mains such as graphs and manifolds. We use x to de-
+note, depending on context, a point on a manifold or a
+vertex of a graph, and consider points y ∈ N (x) in the
+neighborhood of x. With each such y, we associate a
+In
+d-dimensional vector of pseudo-coordinates u(x, y).
+these coordinates, we deﬁne a weighting function (kernel)
+wΘ(u) = (w1(u), . . . , wJ (u)), which is parametrized by
+
+some learnable parameters Θ. The patch operator can there-
+fore be written in the following general form
+
+(cid:6)
+
+Dj(x)f =
+
+wj(u(x, y))f (y),
+
+j = 1, . . . , J,
+
+(9)
+
+y∈N (x)
+
+where the summation should be interpreted as an integral
+in the case we deal with a continuous manifold, and J rep-
+resents the dimensionality of the extracted patch. A spa-
+tial generalization of the convolution on non-Euclidean do-
+mains is then given by a template-matching procedure of
+the form
+
+J(cid:6)
+
+(f (cid:3) g)(x) =
+
+gj Dj(x)f.
+
+(10)
+
+j=1
+The two key choices in our construction are the pseudo-
+coordinates u and the weight functions w(u). Table 3
+shows that other deep learning methods (including the clas-
+sical CNN on Euclidean domains, DCN and DCNN on
+graphs, and GCNN and ACNN on manifolds) can be ob-
+tained as particular settings of our framework with appro-
+priate deﬁnition of u and w(u). For example, GCNN and
+ACNN boil down to using Gaussian kernels on local po-
+lar geodesic coordinates ρ, θ on a manifold, and GCN can
+be interpreted as applying a triangular kernel on pseudo-
+coordinates given by the degree of the graph vertices.
+
+In this paper, rather than using ﬁxed handcrafted weight
+functions we consider parametric kernels with learnable pa-
+rameters. In particular, a convenient choice is
+
+(cid:3)
+
+Σ
+
+−1
+j (u − μj)),
+
+2 (u − μj)
+
+wj(u) = exp(− 1
+
+(11)
+where Σj and μj are learnable d × d and d × 1 covariance
+matrix and mean vector of a Gaussian kernel, respectively.
+Formulae (9–10) can thus be interpreted as a gaussian mix-
+ture model (GMM). We further restrict the covariances to
+have diagonal form, resulting in 2d parameters per kernel,
+and a total of 2Jd parameters for the patch operator.
+
+While extremely simple, we show in the next section that
+these additional degrees of freedom afford our architecture
+sufﬁcient complexity allowing it to outperform existing ap-
+proaches. More complex versions of the weighting func-
+tions could include additional non-linear transformation of
+
+5428
+
+5π/6
+
+π
+
+7π/6
+
+π/2
+
+π/2
+
+π/2
+
+4π/6
+
+π/3
+
+4π/6
+
+π/3
+
+4π/6
+
+π/3
+
+π/6
+
+5π/6
+
+π/6
+
+5π/6
+
+π/6
+
+0
+
+0.2
+
+0.4
+
+0.6
+
+0.8
+
+0
+
+1
+
+π
+
+0
+
+0.2
+
+0.4
+
+0.6
+
+0.8
+
+0
+
+1
+
+π
+
+0
+
+0.2
+
+0.4
+
+0.6
+
+0.8
+
+0
+
+1
+
+11π/6
+
+7π/6
+
+11π/6
+
+7π/6
+
+11π/6
+
+4π/3
+
+5π/3
+
+4π/3
+
+5π/3
+
+4π/3
+
+5π/3
+
+3π/2
+
+3π/2
+
+3π/2
+
+Polar coordinates ρ, θ
+
+Figure 1. Left: intrinsic local polar coordinates ρ, θ on manifold around a point marked in white. Right: patch operator weighting functions
+wi(ρ, θ) used in different generalizations of convolution on the manifold (hand-crafted in GCNN and ACNN and learned in MoNet). All
+kernels are L∞-normalized; red curves represent the 0.5 level set.
+
+GCNN
+
+ACNN
+
+MoNet
+
+the pseudo-coordinates u before feeding them to the Gaus-
+sian kernel, or even more general network-in-a-network ar-
+chitectures [25].
+
+5. Results
+
+5.1. Images
+
+In our ﬁrst experiment, we applied the proposed method
+on a classical task of handwritten digit classiﬁcation in the
+MNIST dataset [23]. While almost trivial by todays stan-
+dards, we nevertheless use this example to visualize an
+important advantage of our approach over spectral graph
+CNN methods. Our experimental setup followed [13]. The
+28 × 28 images were represented as graphs, where vertices
+correspond to (super)pixels and edges represent their spatial
+relations. We considered two constructions: all images rep-
+resented on the same graph (regular grid) and each image
+represented as a different graph (Figure 2 left and right, re-
+spectively). Furthermore, we varied the graph size: the full
+and 1
+4 grids contained 728 and 196 vertices, respectively,
+while the superpixel-based graphs contained 300, 150, and
+75 vertices.
+
+Three methods were compared: classical CNN LeNet5
+architecture [23] (containing two convolutional, two max-
+pooling, and one fully-connected layer, applied on regular
+grids only), spectral ChebNet[13] and the proposed MoNet.
+We used a standard splitting of the MNIST dataset into
+training-, testing-, and validation sets of sizes 55K, 10K,
+and 5K images, respectively. LeNet used 2×2 max-pooling;
+in ChebNet and MoNet we used three convolutional lay-
+ers, interleaved with pooling layers based on the Graclus
+method [14] to coarsen the graph by a factor of four.
+
+For MoNet, we used polar coordinates u = (ρ, θ) of pix-
+els (respectively, of superpixel barycenters) to produce the
+patch operator; as the weighting functions of the patch op-
+erator, 25 Gaussian kernels (initialized with random means
+and variances) were used. Training was done with 350K it-
+erations of Adam method [20], initial learning rate 10−4,
+regularization factor 10−4, dropout probability 0.5, and
+
+Regular grid
+
+Superpixels
+
+Figure 2. Representation of images as graphs. Left: regular grid
+(the graph is ﬁxed for all images). Right: graph of superpixel
+adjacency (different for each image). Vertices are shown as red
+circles, edges as red lines.
+
+batch size of 10.
+
+Table 2 summarizes the performance of different algo-
+rithms. On regular grids, all the methods perform approx-
+imately equally well. However, when applying ChebNet
+on superpixel-based representations, the performance drops
+dramatically (by up to almost 25%). In this case, each im-
+age is represented as a different graph and the ﬁlters used
+by the ChebNet model fail to generalize well across graphs.
+The effect is most pronounced on smaller graphs (150 and
+75 superpixels) that vary strongly among each other. In con-
+trast, the proposed MoNet approach manifests consistently
+high accuracy, and only a light performance degradation is
+observed when the image presentation is too coarse (75 su-
+perpixels).
+
+5429
+
+Table 2. Classiﬁcation accuracy of classical Euclidean CNN
+(LeNet5), spectral CNN (ChebNet) and the proposed approach
+(MoNet) on different versions of the MNIST dataset. The setting
+of all the input images sharing the same graph is marked with *.
+
+Dataset
+
+LeNet5 [23] ChebNet [13] MoNet
+
+*Full grid
+* 1
+4 grid
+300 Superpixels
+150 Superpixels
+75 Superpixels
+
+99.33%
+98.59%
+-
+-
+-
+
+99.14%
+97.70%
+88.05%
+80.94%
+75.62%
+
+99.19%
+98.16%
+97.30%
+96.75%
+91.11%
+
+5.2. Graphs
+
+In the second experiment, we address the problem of
+vertex classiﬁcation on generic graphs. We used the pop-
+ular Cora and PubMed [32] citation graphs as our datasets.
+In each dataset, a vertex represents a scientiﬁc publication
+(2708 vertices in Cora and 19717 in PubMed, respectively),
+and an undirected unweighted edge represents a citation
+(5429 and 44338 edges in Cora and PubMed). For each
+vertex, a feature vector representing the content of the pa-
+per is given (1433-dimensional binary feature vectors in
+Cora, and 500-dimensional tf-idf weighted word vectors in
+PubMed). The task is to classify each vertex into one of the
+groundtruth classes (7 in Cora and 3 in PubMed).
+
+We followed verbatim the experimental settings pre-
+sented in [44, 21]. The training sets consisted of 20 sam-
+ples per class; the validation and test sets consisted of 500
+and 1000 disjoint vertices. The validation set was chosen
+in order to reﬂect the probability distribution of the various
+classes over the entire dataset. We compared our approach
+to all the methods compared in [21].
+
+,
+
+deg(x)
+
+1√
+
+1√
+
+pseudo-coordinates u(x, y) = (
+
+For MoNet, we used the degrees of the nodes as the input
+)(cid:3); these
+coordinates underwent an additional transformation in the
+form of a fully-connected neural network layer ˜u(x, y) =
+tanh(Au(x, y) + b), where the r × 2 matrix A and r × 1
+vector b were also learned (we used r = 2 for Cora and
+r = 3 for PubMed). The Gaussian kernels were applied on
+coordinates ˜u(x, y) yielding patch operators of the form
+
+deg(y)
+
+Dj(x)fl =
+
+(cid:6)
+
+y∈N (x)
+
+− 1
+
+2 (˜u(x,y)−μj )
+
+(cid:3)Σ−1
+j
+
+e
+
+(˜u(x,y)−μj )fl(y),
+
+where Σj, μj, j = 1, . . . , J are the r × r and r × 1 covari-
+ance matrices and mean vectors of the Gaussian kernels,
+respectively. DCNN, GCN and MoNet were trained in the
+same way in order to give a fair comparison (see training de-
+tails in Table 3). The L2-regularization weights for MoNet
+were γ = 10−2 and 5×10−2 for Cora and PubMed, respec-
+tively; for DCNN and GCN we used the values suggested
+by the authors in [3] and [21].
+
+5430
+
+Table 3. Learning conﬁguration used for Cora and PubMed exper-
+iments.
+
+Cora
+
+PubMed
+
+Learning Algorithm Adam
+3000
+Number of epochs
+0.01
+Validation frequency
+0.1
+Learning rate
+10−1
+Decay rate
+1500, 2500
+Decay epochs
+No
+Early stopping
+
+Adam
+1000
+0.04
+0.1
+-
+-
+No
+
+Table 4. Vertex classiﬁcation accuracy on the Cora and PubMed
+datasets following the splitting suggested in [44]. Learning meth-
+ods (DCNN, GCNN and MoNet) were trained and tested ﬁfty
+times for showing their average behavior with different initializa-
+tions.
+
+Method
+
+Cora
+
+PubMed
+
+ManiReg [4]
+SemiEmb [42]
+LP [45]
+DeepWalk [28]
+Planetoid [44]
+
+DCNN [3]
+GCN [21]
+MoNet
+
+70.7%
+71.1%
+63.0%
+65.3%
+77.2%
+
+59.5%
+59.0%
+68.0%
+67.2%
+75.7%
+76.80 ± 0.60% 73.00 ± 0.52%
+81.59 ± 0.42% 78.72 ± 0.25%
+81.69 ± 0.48% 78.81 ± 0.44%
+
+The vertex classiﬁcation results of different methods are
+summarized in Table 4. MoNet compares favorably to other
+approaches. The tuning of the network hyper-parameters
+has been fundamental in this case for avoiding overﬁtting,
+due to a very small size of the training set. Being more gen-
+eral, our architecture is more complex compared to GCN
+and DCNN and requires an appropriate regularization to be
+used in such settings. At the same time, the greater com-
+plexity of our framework might prove advantageous when
+applied to larger and more complex data.
+
+5.3. Manifolds
+
+The last application we consider is learning dense intrin-
+sic correspondence between collections of 3D shapes repre-
+sented as discrete manifolds. For this purpose, correspon-
+dence is cast as a labelling problem, where one tries to label
+each vertex of a given query shape X with the index of a
+corresponding point on some reference shape Y [30, 26, 7].
+Let n and m denote the number of vertices in X and Y, re-
+spectively. For a point x on a query shape, the last layer of
+the network is soft-max, producing an m-dimensional out-
+put f (x) that is interpreted as a probability distribution on
+Y (the probability of x mapped to y). Learning is done by
+minimizing the standard logistic regression cost [7].
+
+Meshes. We reproduced verbatim the experiments of
+
+[26, 7] on the FAUST humans dataset [5], comparing to the
+methods reported therein. The dataset consisted of 100 wa-
+tertight meshes representing 10 different poses for 10 differ-
+ent subjects with exact ground-truth correspondence. Each
+shape was represented as a mesh with 6890 vertices; the
+ﬁrst subject in ﬁrst pose was used as the reference. For all
+the shapes, point-wise 544-dimensional SHOT descriptors
+(local histogram of normal vectors) [39] were used as in-
+put data. We used MoNet architecture with 3 convolutional
+layers, replicating the architectures of [26, 7]. First 80 sub-
+jects in all the poses were used for training; the remaining
+20 subjects were used for testing. The output of the network
+was reﬁned using the intrinsic product manifold ﬁlter [40]
+in order to remove some local outliers.
+
+Correspondence quality was evaluated using the Prince-
+ton benchmark [19], plotting the percentage of matches that
+are at most r-geodesically distant from the ground-truth cor-
+respondence on the reference shape. For comparison, we re-
+port the performance of blended maps [19], random forests
+[30], GCNN [26], ADD [8], and ACNN [7].
+
+Figure 1 shows the weighting functions of the patch op-
+erator that are ﬁxed in GCNN and ACNN architectures, and
+part of the learnable parameters in the proposed MoNet.
+The patch operators of GCNN and ACNN can be obtained
+as a particular conﬁguration of MoNet, implying that if
+trained correctly, the new model can only improve w.r.t.
+the previous ones. Figure 3 depicts the evaluation results,
+showing that MoNet signiﬁcantly outperforms the compet-
+ing approaches. In particular, close to 90% of points have
+zero error, and for 99% of the points the error is below 4cm.
+Figure 5 shows the point-wise geodesic correspondence er-
+ror of our method, and Figure 6 visualizes the obtained cor-
+respondence using texture transfer.
+
+0
+
+1
+
+s
+e
+c
+n
+e
+d
+n
+o
+p
+s
+e
+r
+r
+o
+c
+%
+
+0.8
+
+0.6
+
+0.4
+
+0.2
+
+0
+
+0
+
+Geodesic error (cm)
+
+4
+
+8
+
+12
+
+16
+
+20
+
+BIM
+RF
+ADD
+GCNN
+ACNN
+MoNet
+
+0.02
+
+0.04
+
+0.06
+
+0.08
+
+0.1
+
+Geodesic error (% diameter)
+
+Figure 3. Shape correspondence quality obtained by different
+methods on the FAUST humans dataset. The raw performance
+of MoNet is shown in dotted curve.
+
+Range maps. Finally, we repeated the shape correspon-
+dence experiment on range maps synthetically generated
+from FAUST meshes. For each subject and pose, we pro-
+
+0
+
+1
+
+s
+e
+c
+n
+e
+d
+n
+o
+p
+s
+e
+r
+r
+o
+c
+%
+
+0.8
+
+0.6
+
+0.4
+
+0.2
+
+0
+
+0
+
+Geodesic error (cm)
+
+10
+
+20
+
+30
+
+40
+
+CNN on depth
+CNN on SHOT
+MoNet
+
+0.05
+
+0.1
+Geodesic error (% diameter)
+
+0.15
+
+0.2
+
+Figure 4. Shape correspondence quality obtained by different
+methods on FAUST range maps. For comparison, we show the
+performance of a Euclidean CNN with a comparable 3-layer ar-
+chitecture. The raw performance is shown as dotted curve.
+
+duced 10 rangemaps in 100×180 resolution, covering shape
+rotations around the z-axis with increments of 36 degrees
+(total of 1000 range maps), keeping the ground-truth cor-
+respondence. We used MoNet architecture with 3 convo-
+lutional layers and local SHOT descriptors as input data.
+Training and testing set splitting was done as previously.
+
+Figure 4 shows the quality of correspondence computed
+using the Princeton protocol. For comparison, we show the
+performance of a standard Euclidean CNN in equivalent
+architecture (3 convolutional layers) applied on raw depth
+values and on SHOT descriptors. Our approach clearly
+shows a superior performance. Figure 7 shows the point-
+wise geodesic correspondence error. Figure 8 shows a qual-
+itative visualization of correspondence using similar color
+code for corresponding vertices. We also show correspon-
+dence on shapes from SCAPE [2] and TOSCA [9] datasets.
+
+6. Conclusions
+
+We proposed a spatial-domain model for deep learning
+on non-Euclidean domains such as manifolds and graphs.
+Our approach generalizes several previous techniques that
+can be obtained as particular instances thereof. Extensive
+experimental results show that our model is applicable to
+different geometric deep learning tasks, achieving state-of-
+the-art results.
+In deformable 3D shape analysis applica-
+tions, the key advantage of our approach is that it is intrin-
+sic and thus deformation-invariant by construction, as op-
+posed to Euclidean models [36, 43, 41, 29] that in general
+require signiﬁcantly higher complexity and huge training
+sets to learn the deformation invariance. We believe that
+our framework will be of broad interest to the CVPR com-
+munity and will publish all code and data.
+
+Acknowledgments. This work was supported in part by the ERC
+grants Nos. 307047 (COMET) and 724228 (LEMAN), Google
+Faculty Research Award, and Nvidia equipment grant.
+
+5431
+
+Figure 5. Pointwise error (geodesic distance from groundtruth) of MoNet on the FAUST humans dataset. For visualization clarity, the error
+values are saturated at 7.5% of the geodesic diameter, which corresponds to approximately 15 cm. Hot colors represent large errors.
+
+7.5%
+
+0
+
+Figure 6. Examples of correspondence on the FAUST humans dataset obtained by the proposed MoNet method. Shown is the texture
+transferred from the leftmost reference shape to different subjects in different poses by means of our correspondence.
+
+Figure 7. Pointwise error (geodesic distance from groundtruth) of MoNet on FAUST range maps. For visualization clarity, the error values
+are saturated at 7.5% of the geodesic diameter, which corresponds to approximately 15 cm. Hot colors represent large errors.
+
+7.5%
+
+0
+
+Figure 8. Visualization of correspondence on FAUST range maps as color code (corresponding points are shown in the same color). Full
+reference shape is shown on the left. Bottom row show examples of additional shapes from SCAPE and TOSCA datasets.
+
+5432
+
+References
+
+[1] M. Andreux, E. Rodol`a, M. Aubry, and D. Cremers.
+Anisotropic Laplace-Beltrami operators for shape analysis.
+In Proc. NORDIA, 2014.
+
+[2] D. Anguelov, P. Srinivasan, D. Koller, S. Thrun, J. Rodgers,
+and J. Davis. SCAPE: shape completion and animation of
+people. In TOG, volume 24, pages 408–416, 2005.
+
+[3] J. Atwood and D. Towsley. Diffusion-convolutional neural
+
+networks. arXiv:1511.02136v2, 2016.
+
+[4] M. Belkin, P. Niyogi, and V. Sindhwani. Manifold regular-
+ization: A geometric framework for learning from labeled
+and unlabeled examples. JMLR, 7:2399–2434, 2006.
+
+[5] F. Bogo, J. Romero, M. Loper, and M. J. Black. FAUST:
+In Proc.
+
+Dataset and evaluation for 3D mesh registration.
+CVPR, 2014.
+
+[6] D. Boscaini, J. Masci, S. Melzi, M. M. Bronstein, U. Castel-
+lani, and P. Vandergheynst. Learning class-speciﬁc descrip-
+tors for deformable shapes using localized spectral convolu-
+tional networks. Computer Graphics Forum, 34(5):13–23,
+2015.
+
+[7] D. Boscaini, J. Masci, E. Rodol`a, and M. M. Bronstein.
+Learning shape correspondence with anisotropic convolu-
+tional neural networks. In Proc. NIPS, 2016.
+
+[8] D. Boscaini, J. Masci, E. Rodol`a, M. M. Bronstein, and
+D. Cremers. Anisotropic diffusion descriptors. Computer
+Graphics Forum, 35(2):431–441, 2016.
+
+[9] A. M. Bronstein, M. M. Bronstein, and R. Kimmel. Numer-
+
+ical geometry of non-rigid shapes. Springer, 2008.
+
+[10] M. M. Bronstein, J. Bruna, Y. LeCun, A. Szlam, and P. Van-
+dergheynst. Geometric deep learning: going beyond Eu-
+clidean data. arXiv:1611.08097, 2016.
+
+[11] J. Bruna, W. Zaremba, A. Szlam, and Y. LeCun. Spectral
+networks and locally connected networks on graphs. Proc.
+ICLR, 2013.
+
+[12] S. Cao, W. Lu, and Q. Xu. GraRep: Learning graph repre-
+sentations with global structural information. In Proc. IKM,
+2015.
+
+[13] M. Defferrard, X. Bresson, and P. Vandergheynst. Convolu-
+tional neural networks on graphs with fast localized spectral
+ﬁltering. In Proc. NIPS, 2016.
+
+[14] I. S. Dhillon, Y. Guan, and B. Kulis. Weighted graph
+cuts without eigenvectors: a multilevel approach. PAMI,
+29(11):1944–1957, 2007.
+
+[15] D. K. Duvenaud, D. Maclaurin, J. Iparraguirre, R. Bom-
+barell, T. Hirzel, A. Aspuru-Guzik, and R. P. Adams. Con-
+volutional networks on graphs for learning molecular ﬁnger-
+prints. In Proc. NIPS, 2015.
+
+[16] M. Gori, G. Monfardini, and F. Scarselli. A new model for
+
+learning in graph domains. In Proc. IJCNN, 2005.
+
+[17] A. Grover and J. Leskovec.
+
+node2vec: Scalable feature
+
+learning for networks. In Proc. KDD, 2016.
+
+[18] M. Henaff, J. Bruna, and Y. LeCun. Deep convolutional net-
+
+works on graph-structured data. arXiv:1506.05163, 2015.
+
+[19] V. Kim, Y. Lipman, and T. Funkhouser. Blended intrinsic
+
+maps. ACM Trans. Graphics, 30(4):79, 2011.
+
+[20] D. P. Kingma and J. Ba. Adam: A method for stochastic
+
+optimization. arXiv:1412.6980, 2014.
+
+[21] T. N. Kipf and M. Welling. Semi-supervised classiﬁca-
+tion with graph convolutional networks. arXiv:1609.02907,
+2016.
+
+[22] I. Kokkinos, M. Bronstein, R. Litman, and A. Bronstein. In-
+trinsic shape context descriptors for deformable shapes. In
+Proc. CVPR, 2012.
+
+[23] Y. LeCun, L. Bottou, Y. Bengio, and P. Haffner. Gradient-
+based learning applied to document recognition. Proc. IEEE,
+86(11):2278–2324, 1998.
+
+[24] Y. Li, D. Tarlow, M. Brockschmidt, and R. Zemel. Gated
+
+graph sequence neural networks. arXiv:1511.05493, 2015.
+
+[25] M. Lin, Q. Chen, and S. Yan. Network in network. CoRR,
+
+abs/1312.4400, 2013.
+
+[26] J. Masci, D. Boscaini, M. M. Bronstein, and P. Van-
+dergheynst. Geodesic convolutional neural networks on Rie-
+mannian manifolds. In Proc. 3DRR, 2015.
+
+[27] T. Mikolov and J. Dean. Distributed representations of words
+
+and phrases and their compositionality. Proc. NIPS, 2013.
+
+[28] B. Perozzi, R. Al-Rfou, and S. Skiena. DeepWalk: Online
+learning of social representations. In Proc. KDD, 2014.
+[29] C. R. Qi, H. Su, M. Nießner, A. Dai, M. Yan, and L. J.
+Guibas. Volumetric and multi-view CNNs for object clas-
+siﬁcation on 3D data. In Proc. CVPR, 2016.
+
+[30] E. Rodol`a, S. Rota Bul`o, T. Windheuser, M. Vestner, and
+D. Cremers. Dense non-rigid shape correspondence using
+random forests. In Proc. CVPR, 2014.
+
+[31] F. Scarselli, M. Gori, A. C. Tsoi, M. Hagenbuchner, and
+G. Monfardini. The graph neural network model.
+IEEE
+Trans. Neural Networks, 20(1):61–80, 2009.
+
+[32] P. Sen, G. M. Namata, M. Bilgic, L. Getoor, B. Gallagher,
+and T. Eliassi-Rad. Collective classiﬁcation in network data.
+AI Magazine, 29(3):93–106, 2008.
+
+[33] D. I. Shuman, S. K. Narang, P. Frossard, A. Ortega, and
+P. Vandergheynst. The emerging ﬁeld of signal processing
+on graphs: Extending high-dimensional data analysis to net-
+works and other irregular domains. IEEE Sig. Proc. Maga-
+zine, 30(3):83–98, 2013.
+
+[34] D. I. Shuman, B. Ricaud, and P. Vandergheynst. Vertex-
+frequency analysis on graphs. App. and Comp. Harmonic
+Analysis, 40(2):260–291, 2016.
+
+[35] A. Sinha, J. Bai, and K. Ramani. Deep learning 3D shape
+surfaces using geometry images. In Proc. ECCV, 2016.
+[36] H. Su, S. Maji, E. Kalogerakis, and E. Learned-Miller. Multi-
+view convolutional neural networks for 3D shape recogni-
+tion. In Proc. ICCV, 2015.
+
+[37] S. Sukhbaatar, A. Szlam, and R. Fergus. Learning multiagent
+communication with backpropagation. arXiv:1605.07736,
+2016.
+
+[38] J. Tang, M. Qu, M. Wang, M. Zhang, J. Yan, and Q. Mei.
+LINE: Large-scale information network embedding. In Proc.
+WWW, 2015.
+
+[39] F. Tombari, S. Salti, and L. Di Stefano. Unique signatures
+of histograms for local surface description. In Proc. ECCV,
+2010.
+
+[40] M. Vestner, R. Litman, E. Rodol`a, A. M. Bronstein, and
+D. Cremers. Product manifold ﬁlter: Non-rigid shape corre-
+spondence via kernel density estimation in the product space.
+In Proc. CVPR, 2017.
+
+5433
+
+[41] L. Wei, Q. Huang, D. Ceylan, E. Vouga, and H. Li. Dense
+human body correspondences using convolutional networks.
+In Proc. CVPR, 2016.
+
+[42] J. Weston, F. Ratle, H. Mobahi, and R. Collobert. Deep learn-
+In Neural Networks:
+
+ing via semi-supervised embedding.
+Tricks of the Trade, pages 639–655. 2012.
+
+[43] Z. Wu, S. Song, A. Khosla, F. Yu, L. Zhang, X. Tang, and
+J. Xiao. 3D shapenets: A deep representation for volumetric
+shapes. In Proc. CVPR, 2015.
+
+[44] Z. Yang, W. Cohen, and R. Salakhutdinov.
+
+Revis-
+iting semi-supervised learning with graph embeddings.
+arXiv:1603.08861, 2016.
+
+[45] X. Zhu, Z. Ghahramani, J. Lafferty, et al. Semi-supervised
+learning using gaussian ﬁelds and harmonic functions.
+In
+Proc. ICML, 2003.
+
+5434
+

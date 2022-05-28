@@ -1,0 +1,1654 @@
+This article has been accepted for inclusion in a future issue of this journal. Content is final as presented, with the exception of pagination.
+
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS
+
+1
+
+Temporal Multi-Graph Convolutional Network
+for Trafﬁc Flow Prediction
+
+Mingqi Lv , Zhaoxiong Hong, Ling Chen , Tieming Chen, Tiantian Zhu , and Shouling Ji
+
+, Member, IEEE
+
+Abstract— Trafﬁc ﬂow prediction plays an important role in
+ITS (Intelligent Transportation System). This task is challenging
+due to the complex spatial and temporal correlations (e.g., the
+constraints of road network and the law of dynamic change with
+time). Existing work tried to solve this problem by exploiting a
+variety of spatiotemporal models. However, we observe that more
+semantic pair-wise correlations among possibly distant roads
+are also critical for trafﬁc ﬂow prediction. To jointly model
+the spatial, temporal, semantic correlations with various global
+features in the road network, this paper proposes T-MGCN
+(Temporal Multi-Graph Convolutional Network), a deep learn-
+ing framework for trafﬁc ﬂow prediction. First, we identify
+several kinds of semantic correlations, and encode the non-
+Euclidean spatial correlations and heterogeneous semantic corre-
+lations among roads into multiple graphs. These correlations are
+then modeled by a multi-graph convolutional network. Second,
+a recurrent neural network is utilized to learn dynamic patterns
+of trafﬁc ﬂow to capture the temporal correlations. Third, a fully
+connected neural network is utilized to fuse the spatiotemporal
+correlations with global
+features. We evaluate T-MGCN on
+two real-world trafﬁc datasets and observe improvement by
+approximately 3% to 6% as compared to the state-of-the-art
+baseline.
+
+Index Terms— Trafﬁc ﬂow prediction, graph convolutional
+
+network, graph fusion.
+
+I. INTRODUCTION
+
+A S ONE of the key issues in ITS (Intelligent Trans-
+
+portation System), trafﬁc ﬂow prediction is a process
+of analyzing trafﬁc conditions (e.g., speed, ﬂow, and density)
+on urban road network, mining trafﬁc patterns, and predicting
+the future trafﬁc conditions on the road network. Trafﬁc ﬂow
+prediction could enable a variety of intelligent applications.
+For example, it could help private drivers for route planning
+and departure time scheduling [1] and help trafﬁc manager to
+improve trafﬁc efﬁciency and safety [2].
+
+However, trafﬁc ﬂow prediction is a challenging task due
+to the complex spatial, temporal, and semantic correlations.
+
+Manuscript received April 17, 2019; revised September 18, 2019 and
+December 1, 2019; accepted March 23, 2020. This work was supported in
+part by the Joint Funds of the National Natural Science Foundation of China
+under Grant U1936215 and in part by the Zhejiang Provincial Natural Science
+Foundation of China under Grant LY18F020033. The Associate Editor for this
+article was X. Ma. (Corresponding author: Ling Chen.)
+
+Mingqi Lv, Zhaoxiong Hong, Tieming Chen, and Tiantian Zhu are with
+the College of Computer Science and Technology, Zhejiang University
+of Technology, Hangzhou 310023, China (e-mail: mingqilv@zjut.edu.cn;
+zhaoxionghong@outlook.com; tmchen@zjut.edu.cn; ttzhu@zjut.edu.cn).
+
+Ling Chen and Shouling Ji are with the College of Computer Science
+and Technology, Zhejiang University, Hangzhou 310027, China (e-mail:
+lingchen@zju.edu.cn; sji@zju.edu.cn).
+
+Digital Object Identiﬁer 10.1109/TITS.2020.2983763
+
+(i) Spatial correlation. The urban trafﬁc ﬂow is dominated by
+the topological structure of the underlying road network. It is
+intuitive that the trafﬁc ﬂow of a road would greatly impact
+that of its adjacent roads. Moreover, the spatial correlation
+is directional. For example, the future trafﬁc conditions are
+affected more by the downstream trafﬁc than the upstream
+trafﬁc [3]. (ii) Temporal correlation. The trafﬁc conditions
+change dynamically over time. The temporal correlation can
+be reﬂected in closeness and periodicity [4]. Closeness means
+that trafﬁc conditions of recent time slots are more relevant
+than those of distant time slots. Periodicity means that trafﬁc
+conditions show periodic change patterns over certain time
+intervals. (iii) Semantic correlation. Distant roads may also
+have certain relevance with each other due to some latent
+semantic correlations. For example, roads in urban areas with
+similar functionality (e.g., residential areas and commercial
+areas) usually have similar trafﬁc patterns.
+
+The state-of-the-art methods apply data-driven approach
+for trafﬁc ﬂow prediction. Early methods only consider the
+temporal correlations, including the Kalman ﬁltering based
+methods [5], the ARIMA (Auto-Regressive Integrated Mov-
+ing Average) based methods [6], the SVR (Support Vector
+Regression) model based methods [7], the Bayesian model
+based methods [8], and deep learning based methods [9]–[12].
+However, these methods ignore the spatial correlations, so that
+they cannot optimize the prediction performance for the entire
+road network. To characterize the spatial correlations, some
+works apply CNN (Convolutional Neural Network) for spatial
+modeling [4], [13]–[15]. However, CNN is originally designed
+for spatial structure in Euclidean space (e.g., 2D images and
+regular grids), so it cannot fully adapt to the complex topologi-
+cal structure of a road network. Aiming at this problem, several
+recent works study GCN (Graph Convolutional Network) for
+spatial modeling in road networks [3], [16], [17]. However,
+these methods only consider the topological relations between
+roads to build the graphs, but ignore all other semantic factors
+that could measure the correlations between roads (e.g., trafﬁc
+behaviors and local functionality).
+
+In this paper, we propose T-MGCN (Temporal Multi-Graph
+Convolutional Network), a uniﬁed deep learning framework,
+which integrates spatial, temporal, and semantic correlations
+with various global features for trafﬁc ﬂow prediction in a road
+network. The contributions of this paper are as follows.
+
+(1) We identify two kinds of semantic correlations among
+roads (i.e., the historical trafﬁc pattern correlation and
+the local area functionality similarity) and encode the
+heterogeneous spatial and semantic correlations using
+
+1524-9050 © 2020 IEEE. Personal use is permitted, but republication/redistribution requires IEEE permission.
+See https://www.ieee.org/publications/rights/index.html for more information.
+
+Authorized licensed use limited to: Auckland University of Technology. Downloaded on June 04,2020 at 20:50:05 UTC from IEEE Xplore.  Restrictions apply. 
+
+This article has been accepted for inclusion in a future issue of this journal. Content is final as presented, with the exception of pagination.
+
+2
+
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS
+
+multiple graphs. Then, we propose a multi-graph con-
+volutional network to model and fuse these graphs.
+
+(2) We identify a variety of global features (i.e.,
+
+time
+feature, periodicity feature, and event feature) and design
+a deep neural network to jointly model
+the spatial,
+semantic, temporal correlations, and the global features
+with multiple layers. Speciﬁcally, we stack a convolu-
+tional layer based on multi-graph convolutional network,
+a recurrent layer based on GRU (Gated Recurrent Unit),
+and an output layer based on fully connected neural
+network.
+
+(3) We conduct extensive experiments using two real-world
+trafﬁc datasets. The results show that T-MGCN reduces
+the prediction error by approximately 3% to 6% as
+compared to the best baseline.
+
+this paper
+
+The remainder of
+
+is organized as follows.
+Section II reviews the related work. Section III details the
+proposed method. Section IV reports the experiment results.
+Section V concludes the paper.
+
+II. RELATED WORK
+
+Trafﬁc ﬂow prediction is one of the major research issues
+in ITS. Some traditional trafﬁc ﬂow prediction methods use
+knowledge-driven approach, i.e., they analyze the physical
+properties of the trafﬁc system and build models through
+trafﬁc simulation and prior knowledge. The representative
+methods include the queuing theory model [18],
+the cell
+transmission model [19], and the microscopic fundamental
+diagram model [20]. However, trafﬁc ﬂow is often inﬂuenced
+by a variety of factors, so it is difﬁcult to accurately simulate.
+In addition, these models usually require parameters that are
+difﬁcult to obtain in real-world environment.
+
+With the development of trafﬁc data collection devices,
+data-driven trafﬁc ﬂow prediction methods have received con-
+siderable attention, where statistical models, shallow machine
+learning models, and deep learning models are three represen-
+tative categories. Statistical models predict future values based
+on previously observed values through time-series analysis,
+e.g., historical average model [21], Kalman ﬁltering model [5],
+ARIMA model [6] and its variations [22], [23]. However,
+statistical models typically rely on linear assumption, which
+cannot reﬂect the non-linear characteristics of trafﬁc ﬂow.
+Meanwhile, shallow machine learning methods can learn
+non-linear regularity from trafﬁc data and external factors,
+yielding better trafﬁc ﬂow prediction results. For example,
+SVR model [7], Bayesian model [8], and k-nearest neighbor
+model [24] are mostly exploited methods. However, the perfor-
+mance of shallow machine learning methods heavily depends
+on the manually designed features. Thus, they usually cannot
+yield the best outcomes for prediction tasks with sophisticated
+regularity and complicated factors.
+
+More recently, deep learning models have shown their
+superior capability for trafﬁc ﬂow prediction. The deep learn-
+ing models could automatically extract features that capture
+the correlations of the data, e.g., FNN (Feed-forward Neural
+Network) [9], DBN (Deep Belief Network) [10], and SAE
+(Stacked Auto Encoder) [11]. Since trafﬁc data are typically
+
+time-series data, it is crucial to capture the temporal corre-
+lations. Thus, RNN (Recurrent Neural Network), e.g., LSTM
+(Long Short-Term Memory) and GRU, is widely adopted as
+an essential component of trafﬁc ﬂow prediction models to
+predict a variety of trafﬁc conditions (e.g., trafﬁc speed [25],
+trafﬁc ﬂow [26], and travel time [27]). However, these methods
+ignore the spatial correlations, so that the trafﬁc ﬂow predic-
+tion is not constrained by the structure of the road network.
+Therefore, they often fail to achieve the best results for the
+entire road network.
+
+Aiming at this problem, many researchers exploited CNN to
+characterize spatial correlations. For example, Wu et al. [13]
+combined a 1-dimension CNN and two LSTMs for short-
+term trafﬁc ﬂow prediction. Yu et al. [14] converted network-
+wide trafﬁc speeds into a series of images, and then input
+them into a model that inherits the advantages of CNN and
+LSTM. Wang et al. [15] proposed a deep learning method
+called eRCNN for trafﬁc speed prediction. It leverages CNN
+to capture the nearby road segments to improve the predictive
+accuracy. Zhang et al. [4] designed an end-to-end model called
+ST-ResNet, which employs residual learning to build very deep
+CNNs, to predict the citywide crowd ﬂows. These methods
+have to transform trafﬁc network into regular grids, because
+CNN is originally designed for spatial structure in Euclidean
+space. However, trafﬁc data are time-series data distributed
+over a road network, whose structure is non-Euclidean. As a
+result, CNNs cannot fully capture the spatial correlations of
+the trafﬁc data.
+
+To address this limitation, several recent studies apply GCN
+for spatial modeling in road networks. Generally, GCNs gen-
+eralize the convolution operation to non-Euclidean domains
+based on the spectral graph theory [28]–[30]. For example,
+Li et al. [3] proposed a deep learning framework called
+DCRNN for trafﬁc ﬂow prediction. It captures the spatial
+correlations using bidirectional random walks on the graph and
+the temporal correlations using the encoder-decoder architec-
+ture. Zhao et al. [16] proposed T-GCN, which uses GCN to
+learn the topological structure of the road network and GRU
+to learn the dynamic changes of trafﬁc ﬂow. Yu et al. [17]
+used completely convolutional structures on trafﬁc data to
+capture both the spatial and temporal correlations based on
+GCNs. Zhang et al. [39] integrated GCN into a sequence-to-
+sequence framework for multistep speed prediction. However,
+these studies only consider the topological structure of the
+road network to build the graphs. Actually, more semantic
+correlations between urban roads could be exploited from
+various aspects (e.g., historical behaviors, local area func-
+tionality, and road type). Effectively capturing these semantic
+correlations could further improve the prediction performance.
+Furthermore, GCN has also been applied in a variety of
+spatiotemporal data prediction tasks, e.g., crowd ﬂow predic-
+tion [40], passenger demand prediction [41].
+
+More recently, Geng et al. [38] proposed a multi-graph
+convolutional network based method for ride-hailing demand
+prediction. Chai et al. [42] proposed a multi-graph con-
+volutional network based method for bike ﬂow prediction.
+However, they build the spatial correlations in a grid space,
+
+Authorized licensed use limited to: Auckland University of Technology. Downloaded on June 04,2020 at 20:50:05 UTC from IEEE Xplore.  Restrictions apply. 
+
+This article has been accepted for inclusion in a future issue of this journal. Content is final as presented, with the exception of pagination.
+
+LV et al.: TEMPORAL MULTI-GRAPH CONVOLUTIONAL NETWORK
+
+3
+
+window to process Int to get a sequence of segments. Second,
+for each segment, the convolutional layer uses four individual
+GCNs (i.e., GCNr , GCNw, GCN p, and GCN f ) to perform
+the convolution operation considering the four road graphs
+(i.e., Gr , Gw, G p, and G f ), and fuse the results to get
+the feature matrix. Third, the recurrent layer applies GRU
+to process the sequence of feature matrices obtained from
+the sequence of segments. Finally, the output layer fuses the
+feature matrix with the global features and gets prediction
+result through a fully connected neural network.
+
+B. The Input Layer
+
+Fig. 1. The architecture of T-MGCN.
+
+which is not suitable for trafﬁc ﬂow prediction in a road
+network.
+
+A. Preliminary
+
+III. METHOD
+
+Deﬁnition 1 (Road Graph): A road graph is represented
+as a weighted graph G = (V, E, W ), where each node vi
+represents a road and each edge ei j represents the correlation
+between vi and v j . The weight of edge ei j represents the
+correlation strength between vi and v j . A larger weight
+means that the two roads have higher correlation. In this
+paper, we build road graphs from three aspects, i.e., road
+network topological structure (represented by Gr and Gw),
+trafﬁc pattern correlations (represented by G p), and local area
+functionality similarities (represented by G f ), which will be
+elaborated in Section III.C.
+
+Deﬁnition 2 (Trafﬁc Condition Sample): We denote the
+trafﬁc condition signal (e.g., speed and volume) on the road
+network at time t as an N-dimensional vector xt , where N
+is the number of roads. Then, a trafﬁc condition sample is
+represented as St = (Int , Outt ), where the input part Int =
+[xt −W −1, . . . , xt −1, xt ] is a sequence of W historical trafﬁc
+condition signals, the output part Outt = xt +h is the trafﬁc
+condition signal at time t + h.
+
+1) Problem: The trafﬁc ﬂow prediction problem can be
+considered as learning from a large number of trafﬁc condition
+samples to obtain a function f
+that maps W historical trafﬁc
+condition signals of the current time t
+to the future trafﬁc
+condition signal at time t + h, on the premise of Gr , Gw, G p,
+and G f , as shown in Equation 1, where ˜xt +h is the predicted
+trafﬁc condition signal at time t + h.
+
+˜xt +h = f
+
+(cid:2)
+
+(cid:3)
+Gr , Gw, G p, G f ; (xt −W −1, · · · , xt −1, xt )
+
+(1)
+
+2) Architecture: Fig. 1 shows the architecture of T-MGCN
+that consists of four layers, i.e., an input layer, a convolutional
+layer, a recurrent layer, and an output layer. First, given a
+trafﬁc condition sample St , the input layer uses a sliding
+
+Given a trafﬁc condition sample St , its input part Int could
+be treated as an N ×W matrix, where N is the number of roads
+and W is the number of historical trafﬁc condition signals.
+We use a sliding window with window size w and step size d
+to process Int . Then, we will obtain a sequence of K segments
+(i.e., S1
+t
+
+), each of which is an N × w matrix.
+
+, · · · , SK
+t
+
+, S2
+t
+
+The reason of using such a processing strategy is as follows.
+First, each segment should contain multiple trafﬁc condition
+signals (w > 1). It is because that time-series data have
+closeness feature (i.e., data in the neighboring time slots have
+strong local interactions) [4] and these local interactions in
+the neighboring time slots are captured by the convolutional
+layer for each segment separately. Thus, if w = 1, the local
+interactions would be ignored. Second, the input part of a
+trafﬁc condition sample should be split into multiple segments
+(i.e., w < W ), to facilitate the recurrent layer to capture the
+temporal dynamics. If w = W , the temporal dynamics would
+be ignored.
+
+C. The Convolutional Layer
+
+Convolution operation could well capture local dependency
+and maintain shift invariance, so it is an effective way to
+capture spatial correlations. However, the standard CNNs can
+only be used in Euclidean space (e.g., an image, a space
+with regular grids, etc.) [29], and thus it cannot adapt to the
+complex topological structure of the road network. Since the
+correlations between roads are deﬁned in the form of graphs,
+we apply GCN to perform the convolution operation on road
+network.
+
+1) Graph Construction: Graph construction is the key step
+for GCNs. If the generated graphs could not well encode
+the correlations between nodes, it would not help the model
+learning and might even degrade the prediction performance.
+In general, we assign larger weights to edges between roads
+with stronger correlations from different aspects. Speciﬁcally,
+we build four road graphs (i.e., Gr , Gw, G p, and G f ), which
+are detailed as follows.
+
+a) Topological graph Gr : The topological structure of a
+road network can be represented as a directed graph Gr =
+(V, E, Wr ), where the weight wr (i, j ) of edge ei j
+is the
+reciprocal of the number of hops it takes at least to travel
+from road vi
+to road v j . Thus, roads that are closer in the
+road network will be correlated with higher weights. Then, the
+adjacent matrix Xr of Gr can be represented as Equation 2.
+
+Authorized licensed use limited to: Auckland University of Technology. Downloaded on June 04,2020 at 20:50:05 UTC from IEEE Xplore.  Restrictions apply. 
+
+This article has been accepted for inclusion in a future issue of this journal. Content is final as presented, with the exception of pagination.
+
+4
+
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS
+
+can be represented as Equation 6.
+
+w p(i, j ) = e−α×dt w(i, j )
+⎛
+
+X p =
+
+⎜
+⎜
+⎜
+⎝
+
+0
+w p(2, 1)
+...
+
+w p(1, 2)
+0
+...
+
+w p(N, 1) w p(N, 2)
+
+· · · w p(1, N)
+· · · w p(2, N)
+. . .
+· · ·
+
+...
+0
+
+(5)
+
+⎞
+
+⎟
+⎟
+⎟
+⎠
+
+(6)
+
+d) Functionality graph G f : Roads in urban areas sharing
+similar functionality usually have similar trafﬁc patterns, e.g.,
+industrial areas may have heavy trafﬁc ﬂows in rush hours of
+weekdays, and downtown areas may have heavy trafﬁc ﬂows
+on weekends. The functionality graph is represented as G f =
+(V, E, W f ). The weight w f (i, j ) of edge ei j is the similarity
+of the functionality of the local area of road vi and that of
+road v j , which is calculated as follows.
+
+First, it has been proven in the previous studies that POI
+(Point Of Interest) distribution can measure the functionality
+of an urban area [43]. Given a road vi , from the POIs
+around vi , we calculate the density of POIs of the following
+eight categories, i.e., Residence, Work (e.g., company, ofﬁce
+building, etc.), Commerce (e.g., mall, shop, etc.), Restaurant,
+School, Transportation (e.g., railway station, metro station,
+etc.), Entertainment (e.g.,
+theatre, bar, etc.), and Scenery
+(e.g., park, lake, etc.) to form a feature vector pvi , where
+pvi [ j ] denotes the density of POI category j around road vi
+and is calculated as Equation 7. In the equation, mi
+is the
+j
+number of POIs of category j around road vi , mi is the total
+number of POIs around vi , M j
+is the number of POIs of
+category j in the POI dataset, and M is the total number of
+POIs in the POI dataset. The equation is designed by referring
+to TF-IDF in the natural language processing domain, which
+assigns a higher weight for POI category with less overall
+number. Second, given two roads vi and v j , we use cosine
+similarity to measure the similarity between pvi and pv j ,
+which is treated as the weight w f (i, j ). Then, the adjacent
+matrix X f G f can be represented as Equation 8.
+
+pvi
+
+[ j ] =
+
+mi
+j
+mi
+⎛
+
+× log
+
+M
+M j
+
+X f =
+
+⎜
+⎜
+⎜
+⎝
+
+0
+w f (2, 1)
+...
+
+w f (1, 2)
+0
+...
+
+w f (N, 1) w f (N, 2)
+
+(7)
+
+⎞
+
+⎟
+⎟
+⎟
+⎠ (8)
+
+· · · w f (1, N)
+· · · w f (2, N)
+. . .
+· · ·
+
+...
+0
+
+2) Multi-Graph Convolutional Networks: We utilize the
+GCN in [30] to perform the convolution operation to capture
+the interactions between nodes. Each road graph is input to
+an individual GCN. The propagation rule of GCN can be
+expressed as Equation 9, where ˜X = X + IN is the adjacent
+matrix of a road graph with added self-connections, and IN is
+an identity matrix. Here, X can be Xr , Xw, X p, or X f . ˜D is a
+diagonal matrix such that ˜D[i, i ] =
+˜X[i, j ]. W(l) is a layer-
+speciﬁc trainable weight matrix (e.g., W(0) and W(1) are the
+weight matrices of the ﬁrst and second layers, respectively),
+and we can stack multiple layers to model higher order
+neighborhood interactions in the graph. The original input to
+
+(cid:10)
+
+j
+
+Fig. 2. An example of the topological graph of a road network.
+
+Fig. 2 gives an example of a toy road network and the weight
+matrix of its topological structure.
+
+⎛
+
+⎜
+⎜
+⎜
+⎝
+
+0
+wr (2, 1)
+...
+
+Xr =
+
+wr (1, 2)
+0
+...
+
+wr (N, 1) wr (N, 2)
+
+⎞
+
+⎟
+⎟
+⎟
+⎠
+
+· · · wr (1, N)
+· · · wr (2, N)
+. . .
+· · ·
+
+...
+0
+
+(2)
+
+b) Weighted topological graph Gw: The topological
+graph Gr only considers the number of intermediate links from
+road vi to v j . However, the lengths of those links might also
+affect the correlation of vi and v j . Therefore, we deﬁne the
+weighted topological graph Gw = (V, E, Ww). The weight
+ww(i, j ) of edge ei j is calculated as Equation 3, where len(vk)
+calculates the length of path vk (or road vk ). Then, the adjacent
+matrix Xw of Gw can be represented as Equation 4.
+
+ww(i, j ) =
+
+Xw =
+
+medi an {len(vk )|vk ∈ V }
+len(the shor test path f r om vi to v j )
+⎛
+ww(1, 2)
+0
+...
+
+0
+ww(2, 1)
+...
+
+· · · ww(1, N)
+· · · ww(2, N)
+. . .
+· · ·
+
+ww(N, 1) ww(N, 2)
+
+⎜
+⎜
+⎜
+⎝
+
+...
+0
+
+(3)
+
+⎞
+
+⎟
+⎟
+⎟
+⎠
+
+(4)
+
+c) Trafﬁc pattern graph G p: Roads with similar trafﬁc
+patterns may not necessarily be close in space. With the
+historical trafﬁc condition data of each road, we exploit the
+inter-road correlations by directly measuring the similarity
+of the historical trafﬁc condition patterns of each road pair.
+Speciﬁcally, the trafﬁc pattern graph is represented as G p =
+(V, E, W p). The weight w p(i, j ) of edge ei j is the similarity
+between the historical condition pattern of road vi and that of
+road v j , which is calculated as follows.
+
+First, given a road vi , we use the average historical weekly
+trafﬁc conditions svi as its trafﬁc pattern, where svi
+is a
+sequence and svi [ j ] is the average trafﬁc condition at the
+j -th time slot of a week over the historical trafﬁc condition
+data of vi . Second, given two roads vi and v j , we use
+DTW (Dynamic Time Warping) [31] to calculate the distance
+between svi and sv j , denoted as dtw(i , j ). Finally, we trans-
+form the distance measurement to a similarity measurement
+based on Equation 5, which is treated as the weight w p(i, j ).
+In the equation, α is used to control the decay rate of the
+distance, which should be set according to the range of the
+concerned trafﬁc condition. Then, the adjacent matrix X p G p
+
+Authorized licensed use limited to: Auckland University of Technology. Downloaded on June 04,2020 at 20:50:05 UTC from IEEE Xplore.  Restrictions apply. 
+
+This article has been accepted for inclusion in a future issue of this journal. Content is final as presented, with the exception of pagination.
+
+LV et al.: TEMPORAL MULTI-GRAPH CONVOLUTIONAL NETWORK
+
+5
+
+, Y2
+t
+
+Section III.C is applied to each segment, producing a sequence
+, · · · , YK
+of feature matrices Y1
+. Then, these feature matri-
+t
+t
+ces are fed into the recurrent layer chronologically. Finally,
+we take the output feature matrix of the last hidden state
+HZK
+as the output of the recurrent layer, denoted as RZt
+t
+(i.e., RZt = HZK
+t
+
+).
+
+E. The Output Layer
+
+The output of the recurrent layer RZt encodes the spatial
+correlations of the topological structure of road network, the
+inter-road semantic correlations, and the temporal correlations
+of closeness. However, there are other global features that
+can affect the trafﬁc conditions (e.g., time and event). Thus,
+we extract the following global features before outputting the
+ﬁnal feature matrix.
+
+1) Time Feature: Given a trafﬁc condition sample St , we
+consider time of day, day of week, and holiday event (i.e., hol-
+iday or normal day) as time feature, since they can affect urban
+trafﬁc ﬂows [4]. We extract the time feature at future time t +h,
+for which the trafﬁc condition is predicted. We denote the time
+feature matrix of the road network for St as TZt .
+
+2) Periodicity Feature: Urban trafﬁc ﬂow shows a strong
+periodicity (e.g.,
+trafﬁc conditions during rush hours are
+usually similar on consecutive workdays) [37]. However,
+the recurrent layer could only capture short-term periodicity,
+since W (i.e., the length of the input part of a trafﬁc condition
+sample) cannot be too long. This is because that a too long
+RNN is too difﬁcult to train and the gradient vanishing of too
+long sequence also weakens the effect of periodicity. Thus,
+given a trafﬁc condition sample St , we consider the trafﬁc
+conditions at the same time in the last day t − nd and the
+same time in the last week t − nw as the long-term periodicity
+features, where nd and nw are the durations of a day and
+a week, respectively. In addition, instead of using a single
+trafﬁc condition signal at t − nd and t − nw, we consider a
+small window of trafﬁc condition signals centered at t − nd
+and t −nw. The reason is that the trafﬁc conditions are usually
+not strictly periodic [33]. For example, although almost all the
+weekdays have morning rush hours, the trafﬁc ﬂow peak could
+come at different time slots on each morning. We denote the
+periodicity feature matrix of the road network for St as PZt ,
+which is a N × (2 × w p) matrix. Here, w p is the number of
+trafﬁc condition signals in the small window.
+
+3) Event Feature: In some cases, an event (e.g., a trafﬁc
+accident and a festival gathering) would cause the trafﬁc
+pattern to change sharply in a few hours around the target
+area. However, the presence of such cases is very infrequent
+and it is almost impossible to capture the regularity by only
+considering the trafﬁc condition data [35]. To address this
+issue, we exploit the textual information with location and
+time attributes shared in some event publication websites
+(e.g., location-based social networks and ofﬁcial websites of
+public facilities) to identify the events and capture their effect
+on the future trafﬁc patterns based on a deep neural network.
+Speciﬁcally, given a trafﬁc condition sample St , we aggregate
+the textual snippets published during the period of the input
+to form a document D(t, i ), and
+part Int near each road vi
+
+Fig. 3. The architecture of the recurrent layer.
+
+the GCN is H(0), which is a segment represented by an N × w
+matrix as discussed in Section III.B, and ReLU(·) denotes
+the ReLU activation function. The propagation rule can be
+considered as a spectral ﬁlter in the Fourier domain. Each
+segment is input to four GCNs (i.e., GCNr , GCNw, GCN p, and
+GCN f ), together with the corresponding road graphs (i.e., Gr ,
+Gw, G p, and G f ), resulting in four feature matrices, denoted
+as Hr , Hw, H p, and H f . In this paper, only one layer is used
+in the GCN.
+
+H(l+1) = ReLU ( ˜D− 1
+
+2 ˜X ˜D
+
+− 1
+
+2 H(l)W(l))
+
+(9)
+
+Next, we merge the feature matrices Hr , Hw, H p, and
+H f
+into one feature matrix Y using a parametric matrix
+based fusion method in Equation 10 and 11, where ◦ is the
+element-wise product, Wr , Ww, W p, and W f are the learnable
+parameters that adjust the weights of Hr , Hw, H p, and H f ,
+respectively. The softmax operation is used to normalize the
+parametric matrices.
+, W (cid:4)
+, W (cid:4)
+f
+Y = W (cid:4)
+r
++ W (cid:4)
+f
+
+Wr , Ww, W p, W f
+w ◦ Hw + W (cid:4)
+p
+
+◦ Hr + W (cid:4)
+◦ H f
+
+= so f tmax
+
+w, W (cid:4)
+p
+
+◦ H p
+
+W (cid:4)
+r
+
+(11)
+
+(10)
+
+(cid:2)
+
+(cid:3)
+
+D. The Recurrent Layer
+
+The recurrent
+
+layer is utilized to capture the temporal
+correlations in the sequence of segments represented by the
+sequence of feature matrices. In this paper, GRU is used to
+implement the recurrent layer. GRU is a variant of RNN, where
+the outputs of the previous units are a part of the input to
+the current unit. This mechanism allows the information to
+be passed step by step, and thus RNN is capable of capturing
+temporal correlations. GRU is proposed to address the problem
+of vanishing or exploding of gradient, so that it could better
+learn long-term temporal correlations.
+
+We choose a stacked GRU structure with two layers, which
+is an efﬁcient way to increase model capacity [32]. We apply
+dropout between GRU layers for regularization. As shown
+in Fig. 3, given a trafﬁc condition sample St split
+into
+), the convolution layer in
+, · · · , SK
+K segments (i.e., S1
+t
+t
+
+, S2
+t
+
+Authorized licensed use limited to: Auckland University of Technology. Downloaded on June 04,2020 at 20:50:05 UTC from IEEE Xplore.  Restrictions apply. 
+
+This article has been accepted for inclusion in a future issue of this journal. Content is final as presented, with the exception of pagination.
+
+6
+
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS
+
+Fig. 5. An illustration of the POI projection.
+
+Fig. 4. An overview of the datasets: (a) the road distribution of HZJTD;
+(b) the sensor distribution of PEMSD10.
+
+then use TextCNN [36] to extract a feature vector from D(t, i )
+through a pre-trained word embedding layer, a convolutional
+layer, a max-over-time pooling layer, and a fully connected
+layer. After that, we combine all the extracted feature vectors
+to form the event feature matrix of the road network for St ,
+denoted as EZt .
+
+Second, we fuse RZt , TZt , PZt , and EZt . To be speciﬁc,
+we concatenate RZt , TZt , PZt , and EZt into a long feature
+matrix Zt = RZt ⊕TZt ⊕PZt ⊕EZt , and then stack two fully-
+connected layers upon Zt , where the ﬁrst layer can be viewed
+as an embedding layer and the second layer is used to ensure
+that the output matrix ˜Zt has the same shape as Xt . Note
+that the global features are optional and we could choose
+any of them to form the ﬁnal Zt according to the data
+availability. Finally, we use sigmoid as the activation function
+upon ˜Zt to output the predicted trafﬁc condition signal at time
+t + h, denoted as ˜xt +h. Our model is trained to minimize the
+RMSE (Root Mean Square Error) between the predicted trafﬁc
+condition signal and the true trafﬁc condition signal.
+
+IV. EXPERIMENT
+
+A. Experiment Setup
+
+1) Datasets: We evaluate our method based on two real-
+
+world trafﬁc datasets, i.e., HZJTD and PEMSD10.
+
+HZJTD was collected by Hangzhou Integrated Transporta-
+tion Research Center.1 It was sampled from 202 roads in the
+major urban areas of Hangzhou city by loop detectors. The
+time period of HZJTD is from 16th October, 2013 to 3rd
+October, 2014. HZJTD contains trafﬁc conditions including
+trafﬁc speed and trafﬁc congestion index. Trafﬁc speed is taken
+as the trafﬁc condition to be predicted. We aggregate trafﬁc
+speed on the roads every 15 minutes. Finally, HZJTD contains
+30353 records for each road. The topological structure of the
+road network of Hangzhou city was manually constructed
+(as shown in Fig. 4(a)). Note that a two-way road in the
+ﬁgure is treated as two distinct roads. The POIs in Hangzhou
+city were collected based on Baidu Map API.2
+
+PEMSD10 was collected by California Department of
+Transportation.3 There are totally 39,000 sensors deployed
+on the freeway system across all major metropolitan areas
+
+of the state of California. We randomly select 608 sensors
+among District 10 of California as data sources (as shown
+in Fig. 4(b)). The time period of PEMSD10 is from 1st
+January, 2018 to 31st March, 2018. The dataset
+is also
+aggregated into 15 minutes interval and trafﬁc speed is taken
+as the trafﬁc condition to be predicted. Finally, PEMSD10
+contains 8640 records for each sensor. The POIs in California
+were collected based on Google Map API.4 There are two
+things needed to be noted. First, the sensors and roads are not
+corresponding one to one in PEMSD10 (e.g., there may be
+multiple sensors deployed in the same road), so we ignore the
+topological graph and build the weighted topological graph
+by using a thresholded Gaussian kernel [3], i.e., the weight
+ww(i ,
+is calculated based on
+Equation 12, where dist(vi , v j ) denotes the distance between
+sensor vi and v j , σ is the standard deviation of distances, and
+κ is the distance threshold. Second, PEMSD10 also collects
+incident reports from Trafﬁc Incident Information Page.5 An
+time,
+incident report contains information about
+location, and textual description of the incidents.
+
+j ) between sensor vi and v j
+
+the date,
+
+wr (i, j ) =
+
+,v
+
+− dist(v
+i
+σ 2
+
+⎧
+⎨
+e
+⎩
+0
+
+)2
+
+j
+
+if dist(vi , v j ) < κ
+otherwise
+
+(12)
+
+2) POI Collection: First, both Baidu Map API and Google
+Map API do not allow to query all the POIs within an area for
+once, and they only accept a keyword and a central location as
+input and return a pre-deﬁned number of POIs satisfying the
+keyword around the central location. Thus, we collected POIs
+based on a move-and-scan strategy, i.e., querying POIs around
+a central location multiple times by providing different POI
+categories as keywords, and then moving the central location to
+the next nearby location and repeating the query step. Second,
+the POIs are projected into a road as Fig. 5. A road vi
+is
+represented by a polyline. For each segment si j of vi , we
+draw a rectangle that wraps around si j (the orthogonal distance
+is dr ). Then, all the POIs within these rectangles are treated
+as around vi to build the functionality graph G f .
+
+3) Preprocessing: First, we use linear interpolation method
+to ﬁll the missing values of trafﬁc speed data. Second, we use
+Min-Max normalization method to scale the trafﬁc speed
+values into the range [0, 1] before inputting into the model.
+In the evaluation, we re-scale the predicted trafﬁc speed value
+back to normal to compare with the ground-truth value. Third,
+since the time features are all categorical variables, we use
+one-hot encoding to form binary feature vectors for them.
+
+1http://www.hzjtydzs.com/index.html
+2http://lbsyun.baidu.com/
+3http:// http://pems.dot.ca.gov/
+
+4http://maps.google.com/
+5http://cad.chp.ca.gov/
+
+Authorized licensed use limited to: Auckland University of Technology. Downloaded on June 04,2020 at 20:50:05 UTC from IEEE Xplore.  Restrictions apply. 
+
+This article has been accepted for inclusion in a future issue of this journal. Content is final as presented, with the exception of pagination.
+
+LV et al.: TEMPORAL MULTI-GRAPH CONVOLUTIONAL NETWORK
+
+7
+
+C. Experiment 2: Effect of Components
+
+In the ﬁrst experiment, we try to evaluate the effectiveness
+of the key components of T-MGCN, i.e., the four road graphs
+(Section III.C). Speciﬁcally, we compare the performance of
+the following three variants of T-MGCN.
+
+• T-RGCN: It performs the graph convolution operation
+
+using only Gr , the topological graph.
+
+• T-WGCB: It performs the graph convolution operation
+
+using only Gw, the weighted topological graph.
+
+• T-PGCN: It performs the graph convolution operation
+
+using only G p, the trafﬁc pattern graph.
+
+• T-FGCN: It performs the graph convolution operation
+
+using only G f , the functionality graph.
+
+The four variants work without the GCN fusion step, i.e.,
+Y = Hr for T-RGCN, Y = Hw for T-WGCN, Y = H p
+for T-PGCN, and Y = H f for T-FGCN (Section III.C). The
+experiment results are shown in Table I. First, T-MGCN
+outperforms all the other variants. It means that all the four
+road graphs contribute to the ﬁnal results. Second, besides
+T-MGCN, T-PGCN has the best overall performance. It shows
+that the historical trafﬁc pattern has a strong indication to the
+future trafﬁc condition. Third, T-FGCN has the worst overall
+performance. One potential cause is that the POIs collected by
+Baidu Map API or Google Map API are represented equally as
+points. Actually, POIs with different sizes might have different
+degrees of inﬂuence on trafﬁc conditions (e.g., a big mall
+usually has a stronger inﬂuence on trafﬁc conditions than a
+small shop does).
+
+In the second experiment, we try to investigate the effec-
+tiveness of the global features, i.e., the time features, the
+periodicity features, and the event features (Section III.E).
+Speciﬁcally, we compare the performance of the following
+three variants of T-MGCN.
+
+• T-MGCN-Time: It considers only the time features in the
+
+output layer (i.e., Zt = RZt ⊕TZt ).
+
+• T-MGCN-Periodicity: It considers only the periodicity
+
+features in the output layer (i.e., Zt = RZt ⊕PZt ).
+
+• T-MGCN-Event: It considers only the event features in
+
+the output layer (i.e., Zt = RZt ⊕EZt ).
+
+• T-MGCN-None: All the global features are not consid-
+
+ered in the output layer (i.e., Zt = RZt ).
+
+the global
+
+The experiment results are shown in Table II. Note that
+only PEMSD10 has event features. First, T-MGCN has the
+best overall performance and T-MGCN-None has the worst.
+It demonstrates the effectiveness of
+features.
+Second, T-MGCN-Periodicity outperforms T-MGCN-Time,
+and it has almost the same performance as T-MGCN. It shows
+that the periodicity feature is the most effective among all
+the global features. This result is in accordance with many
+existing works that urban trafﬁc ﬂow usually has a strong
+periodicity [4], [13], [33], [37]. Third, T-MGCN-Event has
+only a trivial advantage over T-MGCN-None. By analyzing
+the experiment data, we found that the events (e.g., trafﬁc
+accidents) had very limited impact on the future trafﬁc ﬂow
+in PEMSD10. It might be because that the car density in
+California is relatively low, so an event would not be likely to
+cause a heavy trafﬁc congestion.
+
+Fig. 6. The effect of parameter w: (a) the effect on RMSE; (b) the effect
+on MAPE.
+
+The periodicity features are also normalized into the range
+[0, 1] based on Min-Max normalization method.
+
+4) Parameter Setting: The default values of the parameters
+are set as follows. The number of roads is N = 202 for HZJTD
+and N = 608 for PEMSD10. We set the length of the input
+part of a trafﬁc condition sample W = 96 (i.e., 24 hours),
+the decay rate of the DTW distance α = 0.1, the orthogonal
+distance to project the POIs dr = 1 km, the number of
+trafﬁc condition signals in the small window of the periodicity
+features w p = 4 (i.e., one hour), and κ = 2 km. For
+TextCNN, the dimension of the word embeddings is 100 and
+the dimension of the outputted feature vectors is 50. In the
+experiment, we employed a 5-fold cross validation strategy.
+Speciﬁcally, the trafﬁc condition samples are chronologically
+split into ﬁve sets, where each set is used as testing set once
+(the other four sets are used as training sets) and the average
+performance is reported. The deep neural network is trained
+using the Adam optimizer. We set the learning rate as 0.001,
+the batch size as 32, and the training epoch as 2000.
+
+5) Evaluation Metric: We measure the performance of
+the prediction methods based on RMSE and MAPE (Mean
+Absolute Percentage Error) as Equations 13 and 14, where ˜Xi
+and Xi are the predicted value and the ground-truth value, and
+n is the number of all predicted values.
+
+(cid:14)
+
+RM S E =
+
+M A P E = 1
+n
+
+(cid:17)
+2
+
+(cid:15)n
+
+1
+n
+(cid:15)n
+
+(cid:16)
+Xi − ˜Xi
+(cid:18)
+(cid:18)
+(cid:18)
+(cid:18)
+(cid:18)
+
+Xi − ˜Xi
+Xi
+
+i=1
+(cid:18)
+(cid:18)
+(cid:18)
+(cid:18)
+(cid:18)
+
+i=1
+
+× 100%
+
+(13)
+
+(14)
+
+B. Experiment 1: Parameter Tuning
+
+In this experiment, we investigate the effect of parameter
+w (i.e., the size of the sliding window used to segment the
+input, as discussed in Section III.B). The length of the input
+is ﬁxed as W = 96 (i.e., 24 hours), the step size d = w/2, and
+we increase w from 2 (i.e., 30 minutes) to 16 (i.e., 4 hours).
+As shown in Fig. 6, when w increases, both RMSE and
+MAPE show a decreasing phase and then an increasing phase
+is followed. On one hand, each segment obtained by the
+sliding window is processed by an individual GCN. Thus,
+if w is too small, it is difﬁcult for the GCNs to capture the
+local interactions in the neighboring time slots. On the other
+hand, when w is too large, the number of segments would be
+signiﬁcantly reduced, so it is difﬁcult for the RNN to capture
+the temporal correlations among segments. To the end, we set
+w = 8 in the following experiments.
+
+Authorized licensed use limited to: Auckland University of Technology. Downloaded on June 04,2020 at 20:50:05 UTC from IEEE Xplore.  Restrictions apply. 
+
+This article has been accepted for inclusion in a future issue of this journal. Content is final as presented, with the exception of pagination.
+
+8
+
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS
+
+TABLE I
+
+THE EVALUATION OF THE ROAD GRAPHS
+
+TABLE II
+
+THE EVALUATION OF THE ADDITIONAL FEATURES
+
+D. Experiment 3: Evaluation of Different Conditions
+
+• T-MGCN-HD: It refers to the performance of T-MGCN
+
+In this experiment, we try to investigate the performance of
+T-MGCN under different conditions (e.g., different time spans,
+different road types). Speciﬁcally, we evaluate T-MGCN under
+the following seven conditions. The prediction horizon is set
+as 5 hours.
+
+• T-MGCN-RH: It refers to the performance of T-MGCN
+during peak hours (i.e., 7:00-9:00 and 16:30-18:30).
+• T-MGCN-NP: It refers to the performance of T-MGCN
+
+during non-peak hours.
+
+• T-MGCN-WD: It refers to the performance of T-MGCN
+
+on weekdays.
+
+on holidays.
+
+• T-MGCN-ER: It refers to the performance of T-MGCN
+
+on urban expressways.
+
+• T-MGCN-AR: It refers to the performance of T-MGCN
+
+on arterial roads.
+
+• T-MGCN-SR: It refers to the performance of T-MGCN
+
+on roads in scenic areas.
+
+The experiment results are shown in Fig. 7. Note that there
+are only freeways involved in PEMSD10, so T-MGCN-ER, T-
+MGCN-AR, and T-MGCN-SR are only evaluated on HZJTD.
+It can be seen that the experiment results on the two datasets
+
+Authorized licensed use limited to: Auckland University of Technology. Downloaded on June 04,2020 at 20:50:05 UTC from IEEE Xplore.  Restrictions apply. 
+
+This article has been accepted for inclusion in a future issue of this journal. Content is final as presented, with the exception of pagination.
+
+LV et al.: TEMPORAL MULTI-GRAPH CONVOLUTIONAL NETWORK
+
+9
+
+Fig. 7. The evaluation of T-MGCN under different conditions: (a) RMSE;
+(b) MAPE.
+
+are consistent with each other. The performance is better under
+“normal” conditions (i.e., on non-peak hours, weekdays, urban
+expressways, and arterial roads). It is because that the trafﬁc
+ﬂow patterns are more unstable under “abnormal” conditions
+(i.e., on peak hours, holidays, and roads in scenic areas).
+
+E. Experiment 4: Comparison With Baselines
+
+To evaluate the competitive performance of the proposed
+method (i.e., T-MGCN), we compare it with the following
+baselines. In these baselines, HA and ARIMA have not con-
+sidered the global features, while SVR, FNN, LSTM, CLTFP,
+T-GCN, GAT, and DCRNN have considered the global fea-
+tures. All the baselines have been optimized to output their
+best performance.
+
+HA: It refers to the historical average model [21], which
+views the trafﬁc speed as a strictly periodic process, and uses
+the average of previous periods as the prediction. In this paper,
+the period is set as one week, and thus the prediction is the
+average trafﬁc speed of the same time in previous weeks.
+ARIMA: It refers to the standard ARIMA model [6].
+SVR: It trains the trafﬁc ﬂow prediction model based on the
+
+SVR algorithm [7]. Here, we use the linear kernel.
+
+FNN: It trains the trafﬁc ﬂow prediction model based on
+the feed-forward neural network [9]. Here, we use two hidden
+layers. The ﬁrst hidden layer contains 64 units and the second
+hidden layer contains 32 units.
+
+LSTM: It refers to the method in [25], which uses the LSTM
+model for trafﬁc ﬂow prediction. Here, we stack two LSTM
+layers, both of which contain 32 units.
+
+CLTFP: It refers to the method in [13], which com-
+bines CNN and LSTM for trafﬁc ﬂow prediction. It uses a
+1-dimensional CNN to capture the spatial correlations, and
+then uses two LSTMs to mine the temporal correlations.
+
+T-GCN: It refers to the method in [16], which combines
+GCN and GRU for trafﬁc ﬂow prediction. It performs the
+graph convolution operation considering only the topological
+graph.
+
+GAT: It is similar with T-GCN, but it utilizes a cutting-edge
+graph neural network in [34], instead of the GCN in T-GCN.
+DCRNN: It refers to the method in [3], which models the
+trafﬁc speed as a diffusion process on a graph and proposes
+a deep learning framework for trafﬁc ﬂow prediction by
+considering both spatial and temporal correlations.
+
+The results are shown in Table III, and the following tenden-
+cies could be discerned from the results. First, deep learning
+
+Fig. 8. A case study of trafﬁc ﬂow prediction: (a) prediction by T-MGCN;
+(b) prediction by T-GCN; (c) prediction by CLTFP; (d) prediction by FNN.
+
+based methods (including FNN, LSTM, CLTFP, T-GCN, GAT,
+DCRNN, and T-MGCN) have a much better performance
+than traditional methods (including HA, ARIMA, and SVR).
+It shows that deep learning based methods can better capture
+the non-linear spatiotemporal correlations. Second, the recur-
+rent deep learning based methods (including LSTM, CLTFP,
+T-GCN, GAT, DCRNN, and T-MGCN) outperform FNN.
+It indicates that trafﬁc ﬂow has a strong temporal correlation,
+which could not be ignored. Third, the spatiotemporal deep
+learning based methods (including CLTFP, T-GCN, GAT,
+DCRNN, and T-MGCN) outperform LSTM. It demonstrates
+the effectiveness of spatial correlation in trafﬁc ﬂow prediction.
+Fourth, the graph deep learning based methods (including
+T-GCN, GAT, DCRNN, and T-MGCN) outperform CLTFP.
+It shows that graphs can better model the spatial and semantic
+correlations in road network than CNNs. Fifth, all the methods
+behave much better on PEMSD10 than that on HZJTD. The
+reasons might be as follows. PEMSD10 was collected from
+freeways and HZJTD was collected from various types of
+urban roads (i.e., urban expressways, arterial roads, and roads
+in scenic areas). Thus, the trafﬁc condition patterns in HZJTD
+would be much more complex due to a variety of urban events
+(e.g., trafﬁc congestion and trafﬁc light). Finally, T-MGCN has
+the best performance in both datasets. It reduces the prediction
+error by approximately 3% to 6% as compared to the best
+baseline. It shows that it could achieve a better performance
+by integrating various correlations (i.e., spatial, temporal, and
+semantic correlations) and global features (i.e., time, period-
+icity, and event features) jointly in T-MGCN.
+
+F. Experiment 5: Case Study
+
+In this section, we conduct a case study to intuitively show
+the performance of T-MGCN. We select three adjacent roads in
+the HZJTD dataset and plot the trafﬁc ﬂow prediction results
+based on several methods in Fig. 8. The trafﬁc ﬂow prediction
+is performed for the next 5 hours. It can be observed that
+T-MGCN captures the temporal trend of trafﬁc speed more
+accurately than the other three methods. As compared to FNN
+and CLTFP that output smooth prediction curves, T-MGCN
+and T-GCN can well adapt to the sharp changes of trafﬁc
+speed. In addition, the prediction curve of T-MGCN could
+
+Authorized licensed use limited to: Auckland University of Technology. Downloaded on June 04,2020 at 20:50:05 UTC from IEEE Xplore.  Restrictions apply. 
+
+This article has been accepted for inclusion in a future issue of this journal. Content is final as presented, with the exception of pagination.
+
+10
+
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS
+
+THE COMPARISON OF DIFFERENT METHODS FOR TRAFFIC SPEED PREDICTION
+
+TABLE III
+
+better align to the ground-truth curve for all the three roads
+in general. It shows that T-MGCN could better capture the
+spatial and semantic correlations of the road network to make
+a more accurate prediction.
+
+V. CONCLUSION AND FUTURE WORK
+
+In this paper, we investigate the trafﬁc ﬂow prediction
+problem on road network. We propose T-MGCN, a novel
+deep learning based model that encodes the non-Euclidean
+spatial correlations and the potential semantic correlations
+among roads using multiple graphs and explicitly captures
+them by fusing multiple graph convolutional networks.
+Then, the results are modeled by a recurrent neural network
+to encode the temporal correlations, and global features
+(e.g., time of day, day of week, periodicity, and events) are also
+incorporated into the model. Through a series of experiments
+based on real-world trafﬁc datasets, we demonstrate that
+T-MGCN could achieve better performance than the state-of-
+the-art baselines.
+
+In the future, we will extend our work from the following
+trafﬁc ﬂow prediction models tend
+the trafﬁc
+
+directions. First, most
+to learn the general
+
+trafﬁc patterns. However,
+
+conditions could change sharply in a few hours, which are
+usually caused by abnormal events (e.g., trafﬁc accidents,
+concerts, etc.). We will extend our method to learn the
+correlations between abnormal events and trafﬁc conditions.
+Second, we will extend our method for multi-step sequential
+trafﬁc ﬂow prediction.
+
+REFERENCES
+
+[1] J. Yuan, Y. Zheng, X. Xie, and G. Sun, “Driving with knowledge from
+the physical world,” in Proc. 17th ACM SIGKDD Int. Conf. Knowl.
+Discovery Data Mining (KDD), 2011, pp. 316–324.
+
+[2] F. Belletti, D. Haziza, G. Gomes, and A. M. Bayen, “Expert level
+control of ramp metering based on multi-task deep reinforcement learn-
+ing,” IEEE Trans. Intell. Transp. Syst., vol. 19, no. 4, pp. 1198–1207,
+Apr. 2018.
+
+[3] Y. Li, R. Yu, C. Shahabi, and Y. Liu, “Diffusion convolutional recurrent
+neural network: Data-driven trafﬁc forecasting,” in Proc. ICLR, 2018,
+pp. 1–16.
+
+[4] J. Zhang, Y. Zheng, D. Qi, R. Li, X. Yi, and T. Li, “Predicting citywide
+crowd ﬂows using deep spatio-temporal residual networks,” Artif. Intell.,
+vol. 259, pp. 147–166, Jun. 2018.
+
+[5] I. Okutani and Y. J. Stephanedes, “Dynamic prediction of trafﬁc volume
+through Kalman ﬁltering theory,” Transp. Res. B, Methodol., vol. 18,
+no. 1, pp. 1–11, Feb. 1984.
+
+[6] M. M. Hamed, H. R. Al-Masaeid, and Z. M. B. Said, “Short-term
+prediction of trafﬁc volume in urban arterials,” J. Transp. Eng., vol. 121,
+no. 3, pp. 249–254, 1995.
+
+Authorized licensed use limited to: Auckland University of Technology. Downloaded on June 04,2020 at 20:50:05 UTC from IEEE Xplore.  Restrictions apply. 
+
+This article has been accepted for inclusion in a future issue of this journal. Content is final as presented, with the exception of pagination.
+
+LV et al.: TEMPORAL MULTI-GRAPH CONVOLUTIONAL NETWORK
+
+11
+
+[7] C.-H. Wu, J.-M. Ho, and D. T. Lee, “Travel-time prediction with support
+vector regression,” IEEE Trans. Intell. Transp. Syst., vol. 5, no. 4,
+pp. 276–281, Dec. 2004.
+
+[8] S. Sun, C. Zhang, and G. Yu, “A Bayesian network approach to trafﬁc
+ﬂow forecasting,” IEEE Trans. Intell. Transp. Syst., vol. 7, no. 1,
+pp. 124–132, Mar. 2006.
+
+[9] D. Park and L. R. Rilett, “Forecasting freeway link travel
+
+times
+with a multilayer feedforward neural network,” Comput.-Aided Civil
+Infrastruct. Eng., vol. 14, no. 5, pp. 357–367, Sep. 1999.
+
+[10] W. Huang, G. Song, H. Hong, and K. Xie, “Deep architecture for
+trafﬁc ﬂow prediction: Deep belief networks with multitask learning,”
+IEEE Trans.
+Intell. Transp. Syst., vol. 15, no. 5, pp. 2191–2201,
+Oct. 2014.
+
+[11] Y. Lv, Y. Duan, W. Kang, Z. Li, and F.-Y. Wang, “Trafﬁc ﬂow prediction
+with big data: A deep learning approach,” IEEE Trans. Intell. Transp.
+Syst., vol. 16, no. 2, pp. 865–873, Apr. 2015.
+
+[12] R. Fu, Z. Zhang, and L. Li, “Using LSTM and GRU neural network
+methods for trafﬁc ﬂow prediction,” in Proc. 31st Youth Academic Annu.
+Conf. Chin. Assoc. Autom. (YAC), Nov. 2016, pp. 324–328.
+
+[13] Y. Wu and H. Tan, “Short-term trafﬁc ﬂow forecasting with
+spatial-temporal
+in a hybrid deep learning frame-
+work,” 2016, arXiv:1612.01022. [Online]. Available: http://arxiv.org/abs/
+1612.01022
+
+correlation
+
+[14] H. Yu, Z. Wu, S. Wang, Y. Wang, and X. Ma, “Spatiotemporal recurrent
+convolutional networks for trafﬁc prediction in transportation networks,”
+Sensors, vol. 17, no. 7, p. 1501, 2017.
+
+[15] J. Wang, Q. Gu, J. Wu, G. Liu, and Z. Xiong, “Trafﬁc speed prediction
+and congestion source exploration: A deep learning method,” in Proc.
+IEEE 16th Int. Conf. Data Mining (ICDM), Dec. 2016, pp. 499–508.
+
+[16] L. Zhao et al., “Temporal graph convolutional network for urban trafﬁc
+ﬂow prediction method,” 2017, arXiv:1811.05320. [Online]. Available:
+https://arxiv.org/abs/1811.05320v1
+
+[17] B. Yu, H. Yin, and Z. Zhu, “Spatio-temporal graph convolu-
+trafﬁc forecast-
+[Online]. Available: http://arxiv.org/
+
+tional networks: A deep learning framework for
+ing,” 2017, arXiv:1709.04875.
+abs/1709.04875
+
+[18] X.-Y. Xu, J. Liu, H.-Y. Li, and J.-Q. Hu, “Analysis of subway station
+capacity with the use of queueing theory,” Transp. Res. C, Emerg.
+Technol., vol. 38, pp. 28–43, Jan. 2014.
+
+[19] P. Wei, Y. Cao, and D. Sun, “Total unimodularity and decomposition
+transmission model,” Transp.
+
+method for large-scale air trafﬁc cell
+Res. B, Methodol., vol. 53, pp. 1–16, Jul. 2013.
+
+[20] F. F. Xu, Z. C. He, and Z. R. Sha, “Impacts of trafﬁc management mea-
+sures on urban network microscopic fundamental diagram,” J. Transp.
+Syst. Eng. Inf. Technol., vol. 13, no. 2, pp. 185–190, Apr. 2013.
+[21] J. Liu and W. Guan, “A summary of trafﬁc ﬂow forecasting methods,”
+J. Highway Transp. Res. Develop., vol. 3, pp. 82–85, Mar. 2004.
+[22] S. Lee and D. B. Fambro, “Application of subset autoregressive inte-
+grated moving average model for short-term freeway trafﬁc volume
+forecasting,” Transp. Res. Rec., J. Transp. Res. Board, vol. 1678, no. 1,
+pp. 179–188, Jan. 1999.
+
+[23] B. M. Williams and L. A. Hoel, “Modeling and forecasting vehicular
+trafﬁc ﬂow as a seasonal ARIMA process: Theoretical basis and empir-
+ical results,” J. Transp. Eng., vol. 129, no. 6, pp. 664–672, Nov. 2003.
+[24] X. Zhang, G. He, and H. Lu, “Short-term trafﬁc ﬂow forecasting based
+on K-nearest neighbors non-parametric regression,” J. Syst. Eng., vol. 24,
+no. 2, pp. 178–183, Feb. 2009.
+
+[25] X. Ma, Z. Tao, Y. Wang, H. Yu, and Y. Wang, “Long short-term memory
+neural network for trafﬁc speed prediction using remote microwave
+sensor data,” Transp. Res. C, Emerg. Technol., vol. 54, pp. 187–197,
+May 2015.
+
+[26] Z. Zhao, W. Chen, X. Wu, P. C. Y. Chen, and J. Liu, “LSTM network:
+A deep learning approach for short-term trafﬁc forecast,” IET Intell.
+Transp. Syst., vol. 11, no. 2, pp. 68–75, Mar. 2017.
+
+[27] Y. Duan, Y. Lv, and F.-Y. Wang, “Travel time prediction with LSTM
+neural network,” in Proc. IEEE 19th Int. Conf. Intell. Transp. Syst.
+(ITSC), Nov. 2016, pp. 1053–1058.
+
+[28] J. Bruna, W. Zaremba, A. Szlam, and Y. LeCun, “Spectral networks and
+locally connected networks on graphs,” in Proc. ICLR, 2014, pp. 1–14.
+[29] M. Defferrard, X. Bresson, and P. Vandergheynst, “Convolutional
+neural networks on graphs with fast localized spectral ﬁltering,” 2016,
+arXiv:1606.09375. [Online]. Available: http://arxiv.org/abs/1606.09375
+[30] T. N. Kipf and M. Welling, “Semi-supervised classiﬁcation with graph
+convolutional networks,” 2016, arXiv:1609.02907. [Online]. Available:
+http://arxiv.org/abs/1609.02907
+
+[31] X. Wang, A. Mueen, H. Ding, G. Trajcevski, P. Scheuermann, and
+E. Keogh, “Experimental comparison of representation methods and
+distance measures for time series data,” Data Mining Knowl. Discovery,
+vol. 26, no. 2, pp. 275–309, Mar. 2013.
+
+[32] S. Yao, S. Hu, Y. Zhao, A. Zhang, and T. Abdelzaher, “DeepSense:
+A uniﬁed deep learning framework for time-series mobile sensing data
+processing,” in Proc. Int. Conf. World Wide Web, 2017, pp. 351–360.
+
+[33] H. Yao, X. Tang, H. Wei, G. Zheng, Y. Yu, and Z. Li, “Modeling spatial-
+temporal dynamics for trafﬁc prediction,” 2018, arXiv:1803.01254v1.
+[Online]. Available: https://arxiv.org/abs/1803.01254v1
+
+[34] P. Veliˇckovi´c, G. Cucurull, A. Casanova, A. Romero, P. Li, and
+Y. Bengio, “Graph attention networks,” 2018, arXiv:1710.10903.
+[Online]. Available: https://arxiv.org/abs/1710.10903
+
+[35] F. C. Pereira, F. Rodrigues, and M. Ben-Akiva, “Using data from the
+Web to predict public transport arrivals under special events scenarios,”
+J. Intell. Transp. Syst., vol. 19, no. 3, pp. 273–288, Jul. 2015.
+
+[36] Y. Kim, “Convolutional neural networks for sentence classiﬁcation,” in
+Proc. Conf. Empirical Methods Natural Lang. Process. (EMNLP), 2014,
+pp. 1746–1751.
+
+[37] J. Ke et al., “Hexagon-based convolutional neural network for supply-
+demand forecasting of ride-sourcing services,” IEEE Trans. Intell.
+Transp. Syst., vol. 20, no. 11, pp. 4160–4173, Nov. 2019.
+
+[38] X. Geng et al., “Spatiotemporal multi-graph convolution network for
+ride-hailing demand forecasting,” in Proc. AAAI Conf. Artif. Intell.,
+Jul. 2019, pp. 3656–3663.
+
+[39] Z. Zhang, M. Li, X. Lin, Y. Wang, and F. He, “Multistep speed prediction
+on trafﬁc networks: A deep learning approach considering spatio-
+temporal dependencies,” Transp. Res. C, Emerg. Technol., vol. 105,
+pp. 297–322, Aug. 2019.
+
+[40] J. Sun, J. Zhang, Q. Li, X. Yi, and Y. Zheng, “Predicting city-
+wide crowd ﬂows in irregular regions using multi-view graph con-
+volutional networks,” 2019, arXiv:1903.07789.
+[Online]. Available:
+http://arxiv.org/abs/1903.07789
+
+[41] J. Ke, H. Zheng, H. Yang, and X. Chen, “Short-term forecasting of
+passenger demand under on-demand ride services: A spatio-temporal
+deep learning approach,” Transp. Res. C, Emerg. Technol., vol. 85,
+pp. 591–608, Dec. 2017.
+
+[42] D. Chai, L. Wang, and Q. Yang, “Bike ﬂow prediction with multi-graph
+convolutional networks,” 2018, arXiv:1807.10934. [Online]. Available:
+http://arxiv.org/abs/1807.10934
+
+[43] T. Zhang, L. Sun, L. Yao, and J. Rong, “Impact analysis of land use
+on trafﬁc congestion using real-time trafﬁc and POI,” J. Adv. Transp.,
+vol. 2017, pp. 1–8, Oct. 2017.
+
+Mingqi Lv received the Ph.D. degree in computer
+science from Zhejiang University, Hangzhou, China,
+in 2012.
+
+He is currently an Associate Professor with the
+College of Computer Science and Technology, Zhe-
+jiang University of Technology, China. His research
+interests include spatiotemporal data mining and
+ubiquitous computing.
+
+Zhaoxiong Hong received the B.S. degree in net-
+work engineering from the Zijin College, Nan-
+jing University of Science and Technology, China,
+in 2017.
+
+Her current research interests include machine
+
+learning and neural networks.
+
+Ling Chen received the B.S. and Ph.D. degrees
+in computer
+science from Zhejiang University
+in 1999 and 2004, respectively.
+
+He is currently an Associate Professor with
+the College of Computer Science and Technol-
+ogy, Zhejiang University, China. His research inter-
+ests include ubiquitous computing, human–computer
+interaction, and pattern recognition.
+
+Authorized licensed use limited to: Auckland University of Technology. Downloaded on June 04,2020 at 20:50:05 UTC from IEEE Xplore.  Restrictions apply. 
+
+This article has been accepted for inclusion in a future issue of this journal. Content is final as presented, with the exception of pagination.
+
+12
+
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS
+
+Tieming Chen received the Ph.D. degree in software
+engineering from Beihang University, China.
+
+He is currently a Full Professor with the College
+of Computer Science and Technology, Zhejiang Uni-
+versity of Technology, China. His research interests
+include data mining and cyberspace security.
+
+Tiantian Zhu received the Ph.D. degree in computer
+science from Zhejiang University, Hangzhou, China,
+in 2019.
+
+He is currently a Lecturer with the College of
+Computer Science and Technology, Zhejiang Uni-
+versity of Technology, China. His research interests
+include data mining, artiﬁcial intelligence, and infor-
+mation security.
+
+Shouling Ji (Member, IEEE) received the Ph.D.
+degree in electrical and computer engineering from
+the Georgia Institute of Technology and the Ph.D.
+degree in computer science from Georgia State Uni-
+versity. He is currently a ZJU 100-Young Professor
+with the College of Computer Science and Tech-
+nology, Zhejiang University, and also a Research
+Faculty with the School of Electrical and Computer
+Engineering, Georgia Institute of Technology.
+
+His current research interests include AI and secu-
+rity, data-driven security, and data analytics. He is a
+member of ACM.
+
+Authorized licensed use limited to: Auckland University of Technology. Downloaded on June 04,2020 at 20:50:05 UTC from IEEE Xplore.  Restrictions apply. 
+

@@ -1,0 +1,1165 @@
+Proceedings of the Thirty-First AAAI Conference on Artificial Intelligence (AAAI-17)
+
+Deep Spatio-Temporal Residual Networks
+for Citywide Crowd Flows Prediction∗
+Junbo Zhang,1 Yu Zheng,1,2,3,4† Dekang Qi2,1
+1Microsoft Research, Beijing, China
+2School of Information Science and Technology, Southwest Jiaotong University, Chengdu, China
+3School of Computer Science and Technology, Xidian University, China
+4Shenzhen Institutes of Advanced Technology, Chinese Academy of Sciences
+{junbo.zhang, yuzheng}@microsoft.com, dekangqi@outlook.com
+
+Abstract
+
+Forecasting the ﬂow of crowds is of great importance to trafﬁc
+management and public safety, and very challenging as it is
+affected by many complex factors, such as inter-region traf-
+ﬁc, events, and weather. We propose a deep-learning-based
+approach, called ST-ResNet, to collectively forecast the in-
+ﬂow and outﬂow of crowds in each and every region of a
+city. We design an end-to-end structure of ST-ResNet based
+on unique properties of spatio-temporal data. More speciﬁ-
+cally, we employ the residual neural network framework to
+model the temporal closeness, period, and trend properties
+of crowd trafﬁc. For each property, we design a branch of
+residual convolutional units, each of which models the spa-
+tial properties of crowd trafﬁc. ST-ResNet learns to dynam-
+ically aggregate the output of the three residual neural net-
+works based on data, assigning different weights to different
+branches and regions. The aggregation is further combined
+with external factors, such as weather and day of the week,
+to predict the ﬁnal trafﬁc of crowds in each and every region.
+Experiments on two types of crowd ﬂows in Beijing and New
+York City (NYC) demonstrate that the proposed ST-ResNet
+outperforms six well-known methods.
+
+Introduction
+Predicting crowd ﬂows in a city is of great importance to
+trafﬁc management and public safety (Zheng et al. 2014).
+For instance, massive crowds of people streamed into a strip
+region at the 2015 New Year’s Eve celebrations in Shanghai,
+resulting in a catastrophic stampede that killed 36 people. In
+mid-July of 2016, hundreds of “Pokemon Go” players ran
+through New York City’s Central Park in hopes of catching
+a particularly rare digital monster, leading to a dangerous
+stampede there. If one can predict the crowd ﬂow in a re-
+gion, such tragedies can be mitigated or prevented by utiliz-
+ing emergency mechanisms, such as conducting trafﬁc con-
+trol, sending out warnings, or evacuating people, in advance.
+In this paper, we predict two types of crowd ﬂows (Zhang
+et al. 2016): inﬂow and outﬂow, as shown in Figure 1(a).
+Inﬂow is the total trafﬁc of crowds entering a region from
+∗This research was supported by NSFC (Nos. 61672399,
+
+U1401258), and the 973 Program (No. 2015CB352400).
+
+†Correspondence author. This work was done when the third
+
+author was an intern at Microsoft Research.
+Copyright c(cid:2) 2017, Association for the Advancement of Artiﬁcial
+Intelligence (www.aaai.org). All rights reserved.
+
+other places during a given time interval. Outﬂow denotes
+the total trafﬁc of crowds leaving a region for other places
+during a given time interval. Both ﬂows track the transition
+of crowds between regions. Knowing them is very beneﬁcial
+for risk assessment and trafﬁc management. Inﬂow/outﬂow
+can be measured by the number of pedestrians, the number
+of cars driven nearby roads, the number of people traveling
+on public transportation systems (e.g., metro, bus), or all of
+them together if data is available. Figure 1(b) presents an
+example. We can use mobile phone signals to measure the
+number of pedestrians, showing that the inﬂow and outﬂow
+of r2 are (3, 1) respectively. Similarly, using the GPS trajec-
+tories of vehicles, two types of ﬂows are (0, 3) respectively.
+
+(a) Inﬂow and outﬂow
+
+(b) Measurement of ﬂows
+
+Figure 1: Crowd ﬂows in a region
+
+Simultaneously forecasting the inﬂow and outﬂow of
+crowds in each region of a city, however, is very challenging,
+affected by the following three complex factors:
+1. Spatial dependencies. The inﬂow of Region r2 (shown in
+Figure 1(a)) is affected by outﬂows of nearby regions (like
+r1) as well as distant regions. Likewise, the outﬂow of r2
+would affect inﬂows of other regions (e.g., r3). The inﬂow
+of region r2 would affect its own outﬂow as well.
+
+2. Temporal dependencies. The ﬂow of crowds in a region
+is affected by recent time intervals, both near and far. For
+instance, a trafﬁc congestion occurring at 8am will affect
+that of 9am. In addition, trafﬁc conditions during morning
+rush hours may be similar on consecutive workdays, re-
+peating every 24 hours. Furthermore, morning rush hours
+may gradually happen later as winter comes. When the
+temperature gradually drops and the sun rises later in the
+day, people get up later and later.
+
+3. External inﬂuence. Some external factors, such as weather
+conditions and events may change the ﬂow of crowds
+tremendously in different regions of a city.
+
+where T r : g1 → g2 → · · · → g|T r| is a trajectory in P,
+and gk is the geospatial coordinate; gk ∈ (i, j) means the
+point gk lies within grid (i, j), and vice versa; | · | denotes
+the cardinality of a set.
+At the tth time interval, inﬂow and outﬂow in all I × J
+regions can be denoted as a tensor Xt ∈ R2×I×J where
+(Xt)0,i,j = x
+. The inﬂow matrix
+is shown in Figure 2(b).
+
+, (Xt)1,i,j = x
+
+out,i,j
+t
+
+in,i,j
+t
+
+Formally, for a dynamical system over a spatial region
+represented by a I × J grid map, there are 2 types of ﬂows
+in each grid over time. Thus, the observation at any time can
+be represented by a tensor X ∈ R2×I×J .
+Problem 1 Given the historical observations {Xt|t =
+0, · · ·, n − 1}, predict Xn.
+
+Deep Residual Learning
+Deep residual learning (He et al. 2015) allows convolution
+neural networks to have a super deep structure of 100 layers,
+even over-1000 layers. And this method has shown state-of-
+the-art results on multiple challenging recognition tasks, in-
+cluding image classiﬁcation, object detection, segmentation
+and localization (He et al. 2015).
+
+Formally, a residual unit with an identity mapping (He et
+
+al. 2016) is deﬁned as:
+
+X(l+1) = X(l) + F(X(l))
+
+(1)
+
+where X(l) and X(l+1) are the input and output of the lth
+residual unit, respectively; F is a residual function, e.g., a
+stack of two 3×3 convolution layers in (He et al. 2015). The
+central idea of the residual learning is to learn the additive
+residual function F with respect to X(l) (He et al. 2016).
+
+Deep Spatio-Temporal Residual Networks
+Figure 3 presents the architecture of ST-ResNet, which
+is comprised of four major components modeling tempo-
+
+To tackle these challenges, we propose a deep spatio-
+temporal residual network (ST-ResNet) to collectively pre-
+dict inﬂow and outﬂow of crowds in every region. Our con-
+tributions are four-fold:
+• ST-ResNet employs convolution-based residual networks
+to model nearby and distant spatial dependencies between
+any two regions in a city, while ensuring the model’s pre-
+diction accuracy is not comprised by the deep structure of
+the neural network.
+
+• We summarize the temporal properties of crowd ﬂows
+into three categories, consisting of temporal closeness, pe-
+riod, and trend. ST-ResNet uses three residual networks to
+model these properties, respectively.
+
+• ST-ResNet dynamically aggregates the output of the three
+aforementioned networks, assigning different weights to
+different branches and regions. The aggregation is further
+combined with external factors (e.g., weather).
+
+• We evaluate our approach using Beijing taxicabs’ trajec-
+tories and meteorological data, and NYC bike trajectory
+data. The results demonstrate the advantages of our ap-
+proach compared with 6 baselines.
+
+Preliminaries
+In this section, we brieﬂy revisit the crowd ﬂows prediction
+problem (Zhang et al. 2016; Hoang, Zheng, and Singh 2016)
+and introduce deep residual learning (He et al. 2016).
+
+Formulation of Crowd Flows Problem
+Deﬁnition 1 (Region (Zhang et al. 2016)) There are many
+deﬁnitions of a location in terms of different granularities
+and semantic meanings. In this study, we partition a city into
+an I ×J grid map based on the longitude and latitude where
+a grid denotes a region, as shown in Figure 2(a).
+
+Figure 2: Regions in Beijing: (a) Grid-based map segmenta-
+tion; (b) inﬂows in every region of Beijing
+
+P
+Deﬁnition 2 (Inﬂow/outﬂow (Zhang et al. 2016)) Let
+be a collection of trajectories at the tth time interval. For a
+grid (i, j) that lies at the ith row and the jth column, the
+inﬂow and outﬂow of the crowds at the time interval t are
+deﬁned respectively as
+
+|{k > 1|gk−1 (cid:3)∈ (i, j) ∧ gk ∈ (i, j)}|
+
+(cid:2)
+
+in,i,j
+t
+
+x
+
+out,i,j
+t
+
+x
+
+=
+
+=
+
+T r∈P
+(cid:2)
+
+T r∈P
+
+|{k ≥ 1|gk ∈ (i, j) ∧ gk+1 (cid:3)∈ (i, j)}|
+
+Figure 3: ST-ResNet architecture. Conv: Convolution;
+ResUnit: Residual Unit; FC: Fully-connected.
+
+ral closeness, period, trend, and external inﬂuence, respec-
+tively. As illustrated in the top-right part of Figure 3, we ﬁrst
+turn Inﬂow and outﬂow throughout a city at each time in-
+terval into a 2-channel image-like matrix respectively, us-
+ing the approach introduced in Deﬁnitions 1 and 2. We
+then divide the time axis into three fragments, denoting re-
+cent time, near history and distant history. The 2-channel
+ﬂow matrices of intervals in each time fragment are then
+fed into the ﬁrst three components separately to model the
+aforementioned three temporal properties: closeness, period
+and trend, respectively. The ﬁrst three components share the
+same network structure with a convolutional neural network
+followed by a Residual Unit sequence. Such structure cap-
+tures the spatial dependency between nearby and distant re-
+gions. In the external component, we manually extract some
+features from external datasets, such as weather conditions
+and events, feeding them into a two-layer fully-connected
+neural network. The outputs of the ﬁrst three components are
+fused as XRes based on parameter matrices, which assign
+different weights to the results of different components in
+different regions. XRes is further integrated with the output
+of the external component XExt. Finally, the aggregation
+is mapped into [−1, 1] by a Tanh function, which yields a
+faster convergence than the standard logistic function in the
+process of back-propagation learning (LeCun et al. 2012).
+
+Structures of the First Three Components
+The ﬁrst three components (i.e. closeness, period, trend)
+share the same network structure, which is composed of two
+sub-components: convolution and residual unit, as shown in
+Figure 4.
+
+(a) Convolutions
+
+(b) Residual Unit
+
+Figure 4: Convolution and residual unit
+
+Convolution. A city usually has a very large size, containing
+many regions with different distances. Intuitively, the ﬂow
+of crowds in nearby regions may affect each other, which
+can be effectively handled by the convolutional neural net-
+work (CNN) that has shown its powerful ability to hierar-
+chically capture the spatial structural information (LeCun et
+al. 1998). In addition, subway systems and highways con-
+nect two locations with a far distance, leading to the depen-
+dency between distant regions. In order to capture the spa-
+tial dependency of any region, we need to design a CNN
+with many layers because one convolution only accounts for
+spatial near dependencies, limited by the size of their ker-
+
+nels. The same problem also has been found in the video
+sequence generating task where the input and output have
+the same resolution (Mathieu, Couprie, and LeCun 2015).
+Several methods have been introduced to avoid the loss of
+resolution brought about by subsampling while preserving
+distant dependencies (Long, Shelhamer, and Darrell 2015).
+Being different from the classical CNN, we do not use sub-
+sampling, but only convolutions (Jain et al. 2007). As shown
+in Figure 4(a), there are three multiple levels of feature maps
+that are connected with a few convolutions. We ﬁnd that a
+node in the high-level feature map depends on nine nodes
+of the middle-level feature map, those of which depend on
+all nodes in the lower-level feature map (i.e. input). It means
+one convolution naturally captures spatial near dependen-
+cies, and a stack of convolutions can further capture distant
+even citywide dependencies.
+
+The closeness component of Figure 3 adopts a few 2-
+channel ﬂows matrices of intervals in the recent time to
+model temporal closeness dependence. Let the recent frag-
+ment be [Xt−lc , Xt−(lc−1), · · ·, Xt−1], which is also known
+as the closeness dependent sequence. We ﬁrst concatenate
+them along with the ﬁrst axis (i.e. time interval) as one ten-
+sor X(0)
+c ∈ R2lc×I×J , which is followed by a convolution
+(i.e. Conv1 shown in Figure 3) as:
+
+(cid:3)
+
+(cid:4)
+
+X(1)
+
+c = f
+
+W (1)
+c
+
+∗ X(0)
+
+c + b(1)
+c
+
+(2)
+
+(1)
+c
+
+(1)
+, b
+c
+
+where ∗ denotes the convolution1; f is an activation func-
+:= max(0, z) (Krizhevsky,
+tion, e.g. the rectiﬁer f (z)
+Sutskever, and Hinton 2012); W
+are the learnable
+parameters in the ﬁrst layer.
+Residual Unit. It is a well-known fact that very deep convo-
+lutional networks compromise training effectiveness though
+the well-known activation function (e.g. ReLU) and regu-
+larization techniques are applied (Ioffe and Szegedy 2015;
+Krizhevsky, Sutskever, and Hinton 2012; Nair and Hinton
+2010). On the other hand, we still need a very deep network
+to capture very large citywide dependencies. For a typical
+crowd ﬂows data, assume that the input size is 32 × 32, and
+the kernel size of convolution is ﬁxed to 3 × 3, if we want to
+model citywide dependencies (i.e., each node in high-level
+layer depends on all nodes of the input), it needs more than
+15 consecutive convolutional layers. To address this issue,
+we employ residual learning (He et al. 2015) in our model,
+which have been demonstrated to be very effective for train-
+ing super deep neural networks of over-1000 layers.
+
+In our ST-ResNet (see Figure 3), we stack L residual units
+
+upon Conv1 as follows,
+X(l+1)
+c
+
+= X(l)
+
+c ; θ(l)
+
+c + F(X(l)
+
+c ), l = 1, · · ·, L
+
+(3)
+where F is the residual function (i.e. two combinations of
+“ReLU + Convolution”, see Figure 4(b)), and θ(l) includes
+all learnable parameters in the lth residual unit. We also at-
+tempt Batch Normalization (BN) (Ioffe and Szegedy 2015)
+
+1To make the input and output have the same size (i.e. I × J) in
+a convolutional operator, we employ a border-mode which allows a
+ﬁlter to go outside the border of an input, padding each area outside
+the border with a zero.
+
+that is added before ReLU. On top of the Lth residual unit,
+we append a convolutional layer (i.e. Conv2 shown in Fig-
+ure 3). With 2 convolutions and L residual units, the output
+of the closeness component of Figure 3 is X(L+2)
+
+.
+
+c
+
+Likewise, using the above operations, we can construct
+the period and trend components of Figure 3. Assume that
+there are lp time intervals from the period fragment and
+the period is p. Therefore, the period dependent sequence
+is [Xt−lp·p, Xt−(lp−1)·p, · · ·, Xt−p]. With the convolutional
+operation and L residual units like in Eqs. 2 and 3, the out-
+put of the period component is X(L+2)
+. Meanwhile, the
+output of the trend component is X(L+2)
+with the input
+[Xt−lq·q, Xt−(lq−1)·q, · · ·, Xt−q] where lq is the length of
+the trend dependent sequence and q is the trend span. Note
+that p and q are actually two different types of periods. In the
+detailed implementation, p is equal to one-day that describes
+daily periodicity, and q is equal to one-week that reveals the
+weekly trend.
+
+p
+
+q
+
+The Structure of the External Component
+
+Trafﬁc ﬂows can be affected by many complex external
+factors, such as weather and event. Figure 5(a) shows that
+crowd ﬂows during holidays (Chinese Spring Festival) can
+be signiﬁcantly different from the ﬂows during normal days.
+Figure 5(b) shows that heavy rain sharply reduces the crowd
+ﬂows at Ofﬁce Area compared to the same day of the lat-
+ter week. Let Et be the feature vector that represents these
+external factors at predicted time interval t. In our imple-
+mentation, we mainly consider weather, holiday event, and
+metadata (i.e. DayOfWeek, Weekday/Weekend). The details
+are introduced in Table 1. To predict ﬂows at time interval
+t, the holiday event and metadata can be directly obtained.
+However, the weather at future time interval t is unknown.
+Instead, one can use the forecasting weather at time interval
+t or the approximate weather at time interval t−1. Formally,
+we stack two fully-connected layers upon Et, the ﬁrst layer
+can be viewed as an embedding layer for each sub-factor
+followed by an activation. The second layer is used to map
+low to high dimensions that have the same shape as Xt. The
+output of the external component of Figure 3 is denoted as
+XExt with the parameters θExt.
+
+400
+
+300
+
+200
+
+100
+
+w
+o
+l
+f
+n
+I
+
+Normal
+Holiday
+
+400
+
+300
+
+200
+
+100
+
+w
+o
+l
+f
+n
+I
+
+Thunderstom
+
+0
+
+Mon Tue Wed Thu Fri Sat Sun
+Time
+(a) Feb 8-14 (red), Feb 15-21
+(green), 2016
+
+0
+
+Sat
+
+Mon
+
+Sun
+Time
+(b) Aug 10-12 (red), Aug 17-
+19 (green), 2013
+
+Fusion
+In this section, we discuss how to fuse four components of
+Figure 3. We ﬁrst fuse the ﬁrst three components with a
+parametric-matrix-based fusion method, which is then fur-
+ther combined with the external component.
+
+Figures 6(a) and (d) show the ratio curves using Beijing
+trajectory data presented in Table 1 where x-axis is time gap
+between two time intervals and y-axis is the average ratio
+value between arbitrary two inﬂows that have the same time
+gap. The curves from two different regions all show an em-
+pirical temporal correlation in time series, namely, inﬂows
+of recent time intervals are more relevant than ones of dis-
+tant time intervals, which implies temporal closeness. The
+two curves have different shapes, which demonstrates that
+different regions may have different characteristics of close-
+ness. Figures 6(b) and (e) depict inﬂows at all time inter-
+vals of 7 days. We can see the obvious daily periodicity in
+both regions. In Ofﬁce Area, the peak values on weekdays
+are much higher than ones on weekends. Residential Area
+has similar peak values for both weekdays and weekends.
+Figures 6(c) and (f) describe inﬂows at a certain time inter-
+val (9:00pm-9:30pm) of Tuesday from March 2015 and June
+2015. As time goes by, the inﬂow progressively decreases in
+Ofﬁce Area, and increases in Residential Area. It shows the
+different trends in different regions. In summary, inﬂows of
+two regions are all affected by closeness, period, and trend,
+but the degrees of inﬂuence may be very different. We also
+ﬁnd the same properties in other regions as well as their out-
+ﬂows.
+
+3
+
+2
+
+1
+
+o
+i
+t
+a
+R
+
+0
+0
+
+10
+
+5
+Time Gap (half hour)
+(a) Closeness of Office Area
+
+15
+
+20
+
+25
+
+3
+
+2
+
+1
+
+o
+i
+t
+a
+R
+
+w
+o
+l
+f
+n
+I
+
+w
+o
+l
+f
+n
+I
+
+0
+0
+
+10
+
+5
+Time Gap (half hour)
+(d) Closeness of Residential Area
+
+15
+
+20
+
+25
+
+400
+
+w
+o
+l
+f
+n
+I
+
+300
+
+200
+
+Mon Tue Wed Thu Fri Sat Sun
+
+100
+
+Mar 3 Mar 31 Apr 28 May 26 Jun 23
+
+(b) Period of Office Area
+
+(c) Trend of Office Area
+
+200
+
+w
+o
+l
+f
+n
+I
+
+150
+
+100
+
+Mon Tue Wed Thu Fri Sat Sun
+
+50
+
+Mar 3 Mar 31 Apr 28 May 26 Jun 23
+
+300
+
+200
+
+100
+
+0
+
+300
+
+200
+
+100
+
+0
+
+(e) Period of Residential Area
+
+(f) Trend of Residential Area
+
+Figure 6: Temporal dependencies (Ofﬁce Area and Residen-
+tial Area are shown in Figure 2(a))
+
+Above all, the different regions are all affected by close-
+ness, period and trend, but the degrees of inﬂuence may
+be different. Inspired by these observations, we propose a
+parametric-matrix-based fusion method.
+Parametric-matrix-based fusion. We fuse the ﬁrst three
+components (i.e. closeness, period, trend) of Figure 3 as fol-
+lows
+XRes = Wc ◦X(L+2)
+
++Wp ◦X(L+2)
+
++Wq ◦X(L+2)
+
+(4)
+
+p
+
+q
+
+c
+
+Figure 5: Effects of holidays and weather in Ofﬁce Area of
+Beijing (the region is shown in Figure 2(a)).
+
+where ◦ is Hadamard product (i.e., element-wise multipli-
+cation), Wc, Wp and Wq are the learnable parameters that
+adjust the degrees affected by closeness, period and trend,
+respectively.
+
+Fusing the external component. We here directly merge the
+output of the ﬁrst three components with that of the exter-
+nal component, as shown in Figure 3. Finally, the predicted
+value at the tth time interval, denoted by (cid:5)Xt, is deﬁned as
+(cid:5)Xt = tanh(XRes + XExt)
+
+(5)
+
+where tanh is a hyperbolic tangent that ensures the output
+values are between -1 and 1.
+
+Our ST-ResNet can be trained to predict Xt from three
+sequences of ﬂow matrices and external factor features by
+minimizing mean squared error between the predicted ﬂow
+matrix and the true ﬂow matrix:
+
+L(θ) = (cid:9)Xt − (cid:5)Xt(cid:9)2
+
+2
+
+(6)
+
+where θ are all learnable parameters in the ST-ResNet.
+
+Algorithm and Optimization
+Algorithm 1 outlines the ST-ResNet training process. We
+ﬁrst construct the training instances from the original se-
+quence data (lines 1-6). Then, ST-ResNet is trained via back-
+propagation and Adam (Kingma and Ba 2014) (lines 7-11).
+
+Algorithm 1: ST-ResNet Training Algorithm
+Input: Historical observations: {X0, · · · , Xn−1};
+external features: {E0, · · · , En−1};
+lengths of closeness, period, trend sequences: lc, lp, lq;
+peroid: p; trend span: q.
+
+Output: Learned ST-ResNet model
+// construct training instances
+
+1 D ←− ∅
+2 for all available time interval t(1 ≤ t ≤ n − 1) do
+3
+
+Sc = [Xt−lc , Xt−(lc−1), · · · , Xt−1]
+Sp = [Xt−lp·p, Xt−(lp−1)·p, · · · , Xt−p]
+Sq = [Xt−lq ·q, Xt−(lq −1)·q, · · · , Xt−q]
+// Xt is the target at time t
+put an training instance ({Sc, Sp, Sq, Et}, Xt) into D
+
+4
+
+5
+
+6
+
+// train the model
+
+7 initialize all learnable parameters θ in ST-ResNet
+8 repeat
+9
+10
+11 until stopping criteria is met
+
+randomly select a batch of instances Db from D
+ﬁnd θ by minimizing the objective (6) with Db
+
+Experiments
+
+Settings
+Datasets. We use two different sets of data as shown in Ta-
+ble 1. Each dataset contains two sub-datasets: trajectories
+and weather, as detailed as follows.
+• TaxiBJ: Trajectoriy data is the taxicab GPS data and me-
+teorology data in Beijing from four time intervals: 1st Jul.
+2013 - 30th Otc. 2013, 1st Mar. 2014 - 30th Jun. 2014,
+1st Mar. 2015 - 30th Jun. 2015, 1st Nov. 2015 - 10th Apr.
+2016. Using Deﬁnition 2, we obtain two types of crowd
+ﬂows. We choose data from the last four weeks as the test-
+ing data, and all data before that as training data.
+
+• BikeNYC: Trajectory data is taken from the NYC Bike
+system in 2014, from Apr. 1st to Sept. 30th. Trip data in-
+cludes: trip duration, starting and ending station IDs, and
+start and end times. Among the data, the last 10 days are
+chosen as testing data, and the others as training data.
+
+4/1/2014 -
+9/30/2014
+
+1 hour
+(16, 8)
+
+\
+6,800+
+4,392
+
+Table 1: Datasets (holidays include adjacent weekends).
+BikeNYC
+Bike rent
+New York
+
+Dataset
+Data type
+Location
+
+TaxiBJ
+Taxi GPS
+Beijing
+7/1/2013 - 10/30/2013
+3/1/2014 - 6/30/2014
+3/1/2015 - 6/30/2015
+11/1/2015 - 4/10/2016
+30 minutes
+(32, 32)
+
+Time Span
+
+Time interval
+Gird map size
+
+Trajectory data
+
+Average sampling rate (s)
+# taxis/bikes
+# available time interval
+
+∼ 60
+34,000+
+22,459
+
+External factors (holidays and meteorology)
+
+# holidays
+Weather conditions
+Temperature / ◦C
+Wind speed / mph
+
+41
+16 types (e.g., Sunny, Rainy)
+[−24.6, 41.0]
+[0, 48.6]
+
+20
+\
+\
+\
+
+Baselines. We compare our ST-ResNet with the following 6
+baselines:
+• HA: We predict inﬂow and outﬂow of crowds by the av-
+erage value of historical inﬂow and outﬂow in the cor-
+responding periods, e.g., 9:00am-9:30am on Tuesday, its
+corresponding periods are all historical time intervals
+from 9:00am to 9:30am on all historical Tuesdays.
+
+• ARIMA: Auto-Regressive Integrated Moving Average
+(ARIMA) is a well-known model for understanding and
+predicting future values in a time series.
+
+• SARIMA: Seasonal ARIMA.
+• VAR: Vector Auto-Regressive (VAR) is a more advanced
+spatio-temporal model, which can capture the pairwise re-
+lationships among all ﬂows, and has heavy computational
+costs due to the large number of parameters.
+
+• ST-ANN: It ﬁrst extracts spatial (nearby 8 regions’ val-
+ues) and temporal (8 previous time intervals) features,
+then fed into an artiﬁcial neural network.
+
+• DeepST (Zhang et al. 2016): a deep neural network
+(DNN)-based prediction model for spatio-temporal data,
+which shows state-of-the-art results on crowd ﬂows pre-
+diction. It has 4 variants, including DeepST-C, DeepST-
+CP, DeepST-CPT, and DeepST-CPTM, which focus on
+different temporal dependencies and external factors.
+Preprocessing. In the output of the ST-ResNet, we use tanh
+as our ﬁnal activation (see Eq. 5), whose range is between -1
+and 1. Here, we use the Min-Max normalization method to
+scale the data into the range [−1, 1]. In the evaluation, we
+re-scale the predicted value back to the normal values, com-
+pared with the groundtruth. For external factors, we use one-
+hot coding to transform metadata (i.e., DayOfWeek, Week-
+end/Weekday), holidays and weather conditions into binary
+
+vectors, and use Min-Max normalization to scale the Tem-
+perature and Wind speed into the range [0, 1].
+Hyperparameters. The python libraries, including Theano
+(Theano Development Team 2016) and Keras (Chollet
+2015), are used to build our models. The convolutions of
+Conv1 and all residual units use 64 ﬁlters of size 3 × 3,
+and Conv2 uses a convolution with 2 ﬁlters of size 3 × 3.
+The batch size is 32. We select 90% of the training data for
+training each model, and the remaining 10% is chosen as
+the validation set, which is used to early-stop our training
+algorithm for each model based on the best validation score.
+Afterwards, we continue to train the model on the full train-
+ing data for a ﬁxed number of epochs (e.g., 10, 100 epochs).
+There are 5 extra hyperparamers in our ST-ResNet, of which
+p and q are empirically ﬁxed to one-day and one-week, re-
+spectively. For lengths of the three dependent sequences, we
+set them as: lc ∈ {3, 4, 5}, lp ∈ {1, 2, 3, 4}, lq ∈ {1, 2, 3, 4}.
+Evaluation Metric: We measure our method by Root Mean
+Square Error (RMSE) as
+
+(cid:6)
+
+RM SE =
+
+1
+
+z
+
+(cid:2)
+
+i
+
+(xi − ˆxi)2
+
+(7)
+
+• Internal structure of residual unit: We attempt three dif-
+ferent types of residual units. L12-E adopts the standard
+Residual Unit (see Figure 4(b)). Compared with L12-E,
+Residual Unit of L12-single-E only contains 1 ReLU fol-
+lowed by 1 convolution, and Residual Unit of L12-E-BN
+added two batch normalization layers, each of which is
+inserted before ReLU. We observe that L12-single-E is
+worse than L12-E, and L12-E-BN is the best, demonstrat-
+ing the effectiveness of batch normalization.
+
+• External factors: L12-E considers the external factors, in-
+cluding meteorology data, holiday events and metadata.
+If not, the model is degraded as L12. The results indicate
+that L12-E is better than L12, pointing out that external
+factors are always beneﬁcial.
+
+• Parametric-matrix-based fusion: Being different with
+L12-E, L12-E-noFusion donot use parametric-matrix-
+based fusion (see Eq. 4). Instead, L12-E-noFusion use
++
+a straightforward method for fusing,
+X(L+2)
+. It shows the error greatly increases,
+p
+which demonstrates the effectiveness of our proposed
+parametric-matrix-based fusion.
+
+i.e., X(L+2)
+
++ X(L+2)
+q
+
+c
+
+where ˆx and x are the predicted value and ground thuth, re-
+spectively; z is the number of all predicted values.
+
+Results on TaxiBJ
+We ﬁrst give the comparison with 6 other models on Tax-
+iBJ, as shown in Table 2. We give 7 variants of ST-ResNet
+with different layers and different factors. Taking L12-E for
+example, it considers all available external factors and has
+12 residual units, each of which is comprised of two con-
+volutional layers. We observe that all of these 7 models are
+better than 6 baselines. Comparing with the previous state-
+of-the-art models, L12-E-BN reduces error to 16.69, which
+signiﬁcantly improves accuracy.
+
+Table 2: Comparison among different methods on TaxiBJ
+RMSE
+Model
+57.69
+HA
+ARIMA
+22.78
+26.88
+SARIMA
+22.88
+VAR
+ST-ANN
+19.57
+18.18
+DeepST
+
+17.67
+L2-E
+L4-E
+17.51
+16.89
+L12-E
+16.69
+L12-E-BN
+L12-single-E
+17.40
+17.00
+L12
+L12-E-noFusion 12 residual units + E without fusion 17.96
+
+ST-ResNet [ours]
+2 residual units + E
+4 residual units + E
+12 residual units + E
+L12-E with BN
+12 residual units (1 conv) + E
+12 residual units
+
+Effects of Different Components. Let L12-E be the com-
+pared model.
+• Number of residual units: Results of L2-E, L4-E and L12-
+E show that RMSE decreases as the number of residual
+units increases. Using residual learning, the deeper the
+network is, the more accurate the results will be.
+
+Results on BikeNYC
+Table 3 shows the results of our model and other baselines
+on BikeNYC. Being different from TaxiBJ, BikeNYC con-
+sists of two different types of crowd ﬂows, including new-
+ﬂow and end-ﬂow (Hoang, Zheng, and Singh 2016). Here,
+we adopt a total of 4-residual-unit ST-ResNet, and consider
+the metadata as external features like DeepST (Zhang et al.
+2016). ST-ResNet has relatively from 14.8% up to 37.1%
+lower RMSE than these baselines, demonstrating that our
+proposed model has good generalization performance on
+other ﬂow prediction tasks.
+
+Table 3: Comparisons with baselines on BikeNYC. The re-
+sults of ARIMA, SARIMA, VAR and 4 DeepST variants are
+taken from (Zhang et al. 2016).
+
+Model
+ARIMA
+SARIMA
+VAR
+DeepST-C
+DeepST-CP
+DeepST-CPT
+DeepST-CPTM
+ST-ResNet [ours, 4 residual units]
+
+RMSE
+10.07
+10.56
+9.92
+8.39
+7.64
+7.56
+7.43
+6.33
+
+Related Work
+Crowd Flow Prediction. There are some previously pub-
+lished works on predicting an individual’s movement based
+on their location history (Fan et al. 2015; Song et al. 2014).
+They mainly forecast millions, even billions, of individuals’
+mobility traces rather than the aggregated crowd ﬂows in
+a region. Such a task may require huge computational re-
+sources, and it is not always necessary for the application
+
+scenario of public safety. Some other researchers aim to pre-
+dict travel speed and trafﬁc volume on the road (Abadi, Ra-
+jabioun, and Ioannou 2015; Silva, Kang, and Airoldi 2015;
+Xu et al. 2014). Most of them are predicting single or mul-
+tiple road segments, rather than citywide ones. Recently, re-
+searchers have started to focus on city-scale trafﬁc ﬂow pre-
+diction (Hoang, Zheng, and Singh 2016; Li et al. 2015). Both
+work are different from ours where the proposed methods
+naturally focus on the individual region not the city, and they
+do not partition the city using a grid-based method which
+needs a more complex method to ﬁnd irregular regions ﬁrst.
+Deep Learning. CNNs have been successfully applied to
+various problems, especially in the ﬁeld of computer vision
+(Krizhevsky, Sutskever, and Hinton 2012). Residual learn-
+ing (He et al. 2015) allows such networks to have a very
+super deep structure. Recurrent neural networks (RNNs)
+have been used successfully for sequence learning tasks
+(Sutskever, Vinyals, and Le 2014). The incorporation of long
+short-term memory (LSTM) enables RNNs to learn long-
+term temporal dependency. However, both kinds of neural
+networks can only capture spatial or temporal dependen-
+cies. Recently, researchers combined above networks and
+proposed a convolutional LSTM network (Xingjian et al.
+2015) that learns spatial and temporal dependencies simulta-
+neously. Such a network cannot model very long-range tem-
+poral dependencies (e.g., period and trend), and training be-
+comes more difﬁcult as depth increases.
+
+In our previous work (Zhang et al. 2016), a general pre-
+diction model based on DNNs was proposed for spatio-
+temporal data. In this paper, to model a speciﬁc spatio-
+temporal prediction (i.e. citywide crowd ﬂows) effectively,
+we mainly propose employing the residual learning and a
+parametric-matrix-based fusion mechanism. A survey on
+data fusion methodologies can be found at (Zheng 2015).
+
+Conclusion and Future Work
+We propose a novel deep-learning-based model for fore-
+casting the ﬂow of crowds in each and every region of
+trajectory data, weather and
+a city, based on historical
+events. We evaluate our model on two types of crowd
+ﬂows
+in Beijing and NYC, achieving performances
+which are signiﬁcantly beyond 6 baseline methods, con-
+ﬁrming that our model
+is better and more applicable
+to the crowd ﬂow prediction. The code and datasets
+have been released at: https://www.microsoft.com/en-
+us/research/publication/deep-spatio-temporal-residual-
+networks-for-citywide-crowd-ﬂows-prediction.
+
+In the future, we will consider other types of ﬂows (e.g.,
+taxi/truck/bus trajectory data, phone signals data, metro card
+swiping data), and use all of them to generate more types of
+ﬂow predictions, and collectively predict all of these ﬂows
+with an appropriate fusion mechanism.
+
+References
+
+Abadi, A.; Rajabioun, T.; and Ioannou, P. A.
+2015. Trafﬁc
+ﬂow prediction for road transportation networks with limited traf-
+ﬁc data. IEEE Transactions on Intelligent Transportation Systems
+16(2):653–662.
+Chollet, F. 2015. Keras. https://github.com/fchollet/keras.
+
+Fan, Z.; Song, X.; Shibasaki, R.; and Adachi, R. 2015. Citymo-
+mentum: an online approach for crowd behavior prediction at a
+citywide level. In ACM UbiComp, 559–569. ACM.
+He, K.; Zhang, X.; Ren, S.; and Sun, J. 2015. Deep residual learn-
+ing for image recognition. In IEEE CVPR.
+He, K.; Zhang, X.; Ren, S.; and Sun, J. 2016. Identity mappings in
+deep residual networks. In ECCV.
+Hoang, M. X.; Zheng, Y.; and Singh, A. K. 2016. Forecasting
+citywide crowd ﬂows based on big data. In ACM SIGSPATIAL.
+Ioffe, S., and Szegedy, C. 2015. Batch normalization: Accelerat-
+ing deep network training by reducing internal covariate shift. In
+ICML, 448–456.
+Jain, V.; Murray, J. F.; Roth, F.; Turaga, S.; Zhigulin, V.; Briggman,
+K. L.; Helmstaedter, M. N.; Denk, W.; and Seung, H. S. 2007.
+Supervised learning of image restoration with convolutional net-
+works. In ICCV, 1–8. IEEE.
+Kingma, D., and Ba, J. 2014. Adam: A method for stochastic
+optimization. arXiv preprint arXiv:1412.6980.
+Krizhevsky, A.; Sutskever, I.; and Hinton, G. E. 2012. ImageNet
+classiﬁcation with deep convolutional neural networks. In NIPS.
+LeCun, Y.; Bottou, L.; Bengio, Y.; and Haffner, P. 1998. Gradient-
+based learning applied to document recognition. Proceedings of
+the IEEE 86(11):2278–2324.
+LeCun, Y. A.; Bottou, L.; Orr, G. B.; and M¨uller, K.-R. 2012. Efﬁ-
+cient backprop. In Neural networks: Tricks of the trade. Springer.
+Li, Y.; Zheng, Y.; Zhang, H.; and Chen, L. 2015. Trafﬁc prediction
+in a bike-sharing system. In ACM SIGSPATIAL.
+Long, J.; Shelhamer, E.; and Darrell, T. 2015. Fully convolutional
+networks for semantic segmentation. In IEEE CVPR, 3431–3440.
+Mathieu, M.; Couprie, C.; and LeCun, Y. 2015. Deep multi-
+scale video prediction beyond mean square error. arXiv preprint
+arXiv:1511.05440.
+Nair, V., and Hinton, G. E. 2010. Rectiﬁed linear units improve
+restricted boltzmann machines. In ICML, 807–814.
+Silva, R.; Kang, S. M.; and Airoldi, E. M. 2015. Predicting trafﬁc
+volumes and estimating the effects of shocks in massive transporta-
+tion systems. Proceedings of the National Academy of Sciences
+112(18):5643–5648.
+Song, X.; Zhang, Q.; Sekimoto, Y.; and Shibasaki, R. 2014. Pre-
+diction of human emergency behavior and their mobility following
+large-scale disaster. In ACM SIGKDD, 5–14. ACM.
+Sutskever, I.; Vinyals, O.; and Le, Q. V. 2014. Sequence to se-
+quence learning with neural networks. In NIPS, 3104–3112.
+Theano Development Team. 2016. Theano: A Python framework
+for fast computation of mathematical expressions. arXiv e-prints
+abs/1605.02688.
+Xingjian, S.; Chen, Z.; Wang, H.; Yeung, D.-Y.; Wong, W.-k.; and
+WOO, W.-c. 2015. Convolutional lstm network: A machine learn-
+ing approach for precipitation nowcasting. In NIPS, 802–810.
+Xu, Y.; Kong, Q.-J.; Klette, R.; and Liu, Y. 2014. Accurate and
+interpretable bayesian mars for trafﬁc ﬂow prediction. IEEE Trans-
+actions on Intelligent Transportation Systems 15(6):2457–2469.
+Zhang, J.; Zheng, Y.; Qi, D.; Li, R.; and Yi, X. 2016. DNN-based
+prediction model for spatial-temporal data. In ACM SIGSPATIAL.
+Zheng, Y.; Capra, L.; Wolfson, O.; and Yang, H. 2014. Urban com-
+puting: concepts, methodologies, and applications. ACM Transac-
+tions on Intelligent Systems and Technology (TIST) 5(3):38.
+Zheng, Y. 2015. Methodologies for cross-domain data fusion: An
+overview. IEEE transactions on big data 1(1):16–34.
+

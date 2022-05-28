@@ -1,0 +1,1415 @@
+This article has been accepted for inclusion in a future issue of this journal. Content is final as presented, with the exception of pagination.
+
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS
+
+1
+
+Dynamic Graph Convolution Network for Trafﬁc
+Forecasting Based on Latent Network of
+Laplace Matrix Estimation
+
+Kan Guo , Yongli Hu , Member, IEEE, Zhen Qian , Yanfeng Sun , Member, IEEE,
+
+Junbin Gao , Member, IEEE, and Baocai Yin, Member, IEEE
+
+the
+
+transportation research ﬁeld as
+
+Abstract— Trafﬁc forecasting is a challenging problem in
+the
+complexity and
+non-stationary changing of the trafﬁc data, thus the key to the
+issue is how to explore proper spatial and temporal character-
+istics. Based on this thought, many creative methods have been
+proposed, in which Graph Convolution Network (GCN) based
+methods have shown promising performance. However, these
+methods depend on the graph construction, which mainly uses
+the prior knowledge of the road network. Recently, some works
+realized the fact of the road network graph changing and tried to
+construct dynamic graphs for GCN, but they do not fully exploit
+the spatial and temporal properties of the trafﬁc data in the
+graph construction. In this paper, we propose a novel dynamic
+graph convolution network for trafﬁc forecasting, in which a
+latent network is introduced to extract spatial-temporal features
+for constructing the dynamic road network graph matrices
+adaptively. The proposed method is evaluated on several trafﬁc
+datasets and the experimental results show that it outperforms
+the state of the art trafﬁc forecasting methods. The website of
+the code is https://github.com/guokan987/DGCN.git.
+
+Index Terms— Dynamic graph convolution network, Laplace
+
+matrix latent network.
+
+I. INTRODUCTION
+
+E STABLISHING Intelligent Transportation System (ITS)
+
+is becoming a pivotal aspect of the modern transportation
+in which trafﬁc forecasting plays a critical
+research ﬁeld,
+role as it has extensive applications, such as optimizing the
+
+Manuscript received November 17, 2019; revised May 30, 2020 and
+July 8, 2020; accepted August 13, 2020. This work was supported in
+part by the National Natural Science Foundation of China under Grant
+U19B2039, Grant 61632006, Grant 61672071, Grant U1811463, Grant
+61772048, Grant 61806014, and Grant 61906011; in part by the Beijing
+Natural Science Foundation under Grant 4172003, Grant 4184082, and Grant
+4204086;
+in part by the Beijing Talents Project under Grant 2017A24,
+and in part by the Beijing Outstanding Young Scientists Projects under
+Grant BJJWZYJH01201910005018. The Associate Editor for this article was
+P. Wang. (Corresponding author: Yongli Hu.)
+
+Kan Guo is with the Beijing Key Laboratory of Multimedia and Intelligent
+Software Technology, Faculty of Information Technology, Beijing University
+of Technology, Beijing 100124, China (e-mail: guokan@emails.bjut.edu.cn).
+Yongli Hu, Yanfeng Sun, and Baocai Yin are with the Beijing Key
+Laboratory of Multimedia and Intelligent Software Technology, Faculty of
+Information Technology, Beijing Artiﬁcial Intelligence Institute, Beijing Uni-
+versity of Technology, Beijing 100124, China (e-mail: huyongli@bjut.edu.cn;
+yfsun@bjut.edu.cn; ybc@bjut.edu.cn).
+
+Zhen Qian is with the Civil and Environmental Engineering and H. John
+Heinz III College, Carnegie Mellon University, Pittsburgh, PA 15213 USA
+(e-mail: seanqian@cmu.edu).
+
+Junbin Gao is with the Discipline of Business Analytics, The University
+of Sydney Business School, The University of Sydney, Sydney, NSW 2006,
+Australia (e-mail: junbin.gao@sydney.edu.au).
+
+Digital Object Identiﬁer 10.1109/TITS.2020.3019497
+
+allocation of road usage, planing customers’ travel route in
+advance, and guiding the road building, etc.
+
+With the heavy usage of trafﬁc detectors and sensors on
+the city road network, the modern trafﬁc system accumulates
+enormous historical data. There exist rich information and
+regularity hidden in the big data produced by the dynam-
+ically changeable trafﬁc system. Thus, many models based
+on the historical road network information are proposed and
+researched,
+is how to
+in which the main research point
+establish time series model and exploit spatial relation of
+road segment nodes through the novel methodology, e.g.,
+the Kalman Filter models [1]–[3], the statistics [4]–[8], and
+the artiﬁcial intelligence [9], [10].
+
+For a real-world transportation system, there are too many
+causes [11] that impact trafﬁc forecasting, such as the nonlin-
+ear and non-stationary trafﬁc data, weather, and incidents, etc.,
+and it brings some difﬁculties on excavating the spatial and
+temporal features. With the rapid rise of research in artiﬁcial
+intelligence and the developing of various deep neural net-
+work models, many creative methods are proposed to explore
+complicated temporal-spatial characteristics of the trafﬁc data,
+such as Space State NN (SSNN) [12], which was designed to
+seek a kind of temporal-spatial relation based on First Order
+Context (FOC) memory; Deep Spatio-Temporal Convolution
+Network (DSTCN) [13], which explores the spatial relation by
+Convolution Neural Network (CNN) and exploits the temporal
+information with Recurrent Neural Network (RNN). Although
+some models establish spatial-temporal relationships,
+they
+ignore the natural topology structure of the road network in
+space and even destroy this structure.
+
+Recently, Graph Convolution Network (GCN) [14] was
+investigated to represent the relationship between the irregular
+trafﬁc data as a graph. For example, the studies [15], [16] com-
+bined CNN or RNN with GCN to learn the spatial-temporal
+feature of trafﬁc data. However, the performance of these
+works was degraded because of using a ﬁxed and empirical
+graph, in which the dynamic properties of trafﬁc data were
+not considered. Thus, a data-driven method [17] was proposed
+to optimize a parameterized global-temporal-sharing Laplace
+matrix in the network training phase, and it obtained richer
+space connections compared to the empirical one [15], [16].
+But, this graph’s Laplace matrix is still ﬁxed in the prediction
+phase, which cannot capture the dynamic information of
+the graph to improve the forecasting accuracy. To exploit
+the complicated and non-stationary changing of trafﬁc data,
+
+1524-9050 © 2020 IEEE. Personal use is permitted, but republication/redistribution requires IEEE permission.
+See https://www.ieee.org/publications/rights/index.html for more information.
+
+Authorized licensed use limited to: Cornell University Library. Downloaded on September 15,2020 at 08:45:39 UTC from IEEE Xplore.  Restrictions apply. 
+
+This article has been accepted for inclusion in a future issue of this journal. Content is final as presented, with the exception of pagination.
+
+2
+
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS
+
+input of trafﬁc forecasting is a temporal sequence data, so the
+trafﬁc forecasting is a speciﬁc problem of time series analy-
+sis and utilises the moving window technique to implement
+forecasting. For convenience, we deﬁne the input data of the
+∈ RF , in which the
+i − th road node at t
+time as the x i
+t
+t . For example, F = 3 represents
+F is the feature size of x i
+the model will accept three different kinds of road trafﬁc
+data such as trafﬁc ﬂow, average speed and so on. Then,
+the trafﬁc data of the road network at time t is denoted by
+Xt = (. . . , x i
+, . . . ), i = 1, . . . , N, where N is the number
+t
+of road segments, and we will forecast the trafﬁc data for the
+next T1 times by using T2 input data, i.e. the length of moving
+window is T2. Thus, the input data is (X1, . . . , Xt , . . . , X T2
+) ∈
+RN×T2×F , and one usually predicts a kind of trafﬁc data
+such as: trafﬁc ﬂow or speed, so the forecasting results is
+( ˆX(T2+1), . . . , ˆX(T2+T1))[:,:, j ] ∈ RN×T1×1 and the ground truth
+is (X(T2+1), . . . , X(T2+T1))[:,:, j ] ∈ RN×T1×1. To represent the
+graph structure of trafﬁc network, we deﬁne graph as G =
+(V, E, A), where V ∈ RN is the road segment set, E is the
+edge set, and A ∈ RN×N is the adjacent matrix of G.
+
+the statistical
+
+In the past decades, there are enormous trafﬁc forecasting
+methods presented by researchers, and they can be classiﬁed
+as model-driven methods and data-driven methods. In respect
+of model-driven methods, DynaMIT [20] and DYNASMART-
+X [21] were proposed to conduct real-time trafﬁc simulation
+system, and they are based on state estimators like Kalman
+Filters(KFs). Then, more advanced KFs state estimators were
+proposed, such as Extended Kalman Filters (EKFs) [1], which
+combined KFs with a stochastic macroscopic freeway network;
+the localized EKFs [3] and the probabilistic heterogeneous
+trafﬁc data fusion based EKFs [22]. The data-driven methods
+theory, and the simplest statistical
+begin at
+method is Historical Average (HA), in which the mean of
+the historical trafﬁc data is regarded as the predicted value in
+the future. Then, the classic linear regression method: Autore-
+gressive Integrated Moving Average Model (ARIMA) [4] was
+proposed, and the seasonal ARIMA [5] was utilized on the
+highway datasets. With the research of machine learning, most
+non-linear methods were utilized to explore the relationship of
+the input trafﬁc data, Wu et al. [8] introduced SVM [23] into
+the trafﬁc short-time prediction method. Different from SVM,
+Yu and Chen [9] proposed a single hidden layer NN for trafﬁc
+forecasting, and Lint et al. [12] presented SSNN to reveal
+the Spatio-temporal relation of trafﬁc data. Recently, with
+the rapid development of artiﬁcial intelligence technology,
+researchers [24] began to deal with the trafﬁc forecasting
+problem through deep learning methods. Most works are
+CNN or RNN based methods, such as LSTM [25], the Gated
+Recurrent Unit (GRU) [26], DSTCN [13] which uses residual
+convolution units model and considers the impact of weather
+and accidents, GeoMAN [27] which utilizes multi-layer Atten-
+tion mechanism, etc.
+
+Fig. 1. The framework of the proposed method compared with the traditional
+GCN based method.
+
+attention mechanism based Spatial-Temporal Graph Convolu-
+tional Network (ASTGCN) [18] was presented, in which a
+dynamic Laplace matrix of the graph was constructed at each
+input sequence data by the spatial attention mechanism [19].
+However, the main limitation of ASTGCN is that
+it still
+utilized the empirical Laplace matrix [15], [16] as a mask
+matrix in the dynamic Laplace matrices of the road network,
+which could ﬁlter out some elements of the empirical Laplace
+matrix. Furthermore, ASTGCN ignored the inner temporal
+connection between Laplace matrices of the adjacent periods.
+Thus, in this paper, we propose a novel dynamic graph con-
+volution network for trafﬁc forecasting, as shown in Fig.1(b).
+to the ﬁxed and empirical Laplace matrix in
+In contrast
+the traditional GCN based methods, as shown in Fig.1(a),
+the proposed method introduces a Laplace Matrix Latent
+Network (LMLN) to adaptively represent the spatial-temporal
+relationship, then it feeds this relationship to GCN and forms
+a dynamic graph convolution network. Compared with the
+closely related work, ASTGCN, the proposed LMLN utilizes
+a latent spatial-temporal network to estimate a sequence of
+Laplace matrices. At last, the proposed network of a one-time
+slice, the gray block in Fig.1(b), will be detailed in Section 3.
+The main contributions of the paper are summarized as
+follows,
+
+• A novel Dynamic Graph Convolution Network (DGCN)
+is proposed for trafﬁc forecasting based on dynamic graph
+Laplace matrix;
+
+• A latent network of graph Laplace matrix is proposed
+to represent the spatial-temporal connection of the trafﬁc
+data adaptively;
+
+• Trafﬁc forecasting experiments are conducted on several
+real-world trafﬁc datasets and the validity of our model
+is veriﬁed.
+
+II. PRELIMINARIES AND RELATED WORK
+
+B. Graph Convolution Network
+
+A. Trafﬁc Forecasting
+
+Trafﬁc forecasting is to predict the future trafﬁc ﬂow or
+speed by using the current or past observed trafﬁc data. The
+
+Derived from the theory of graph spectrum, GCN can
+process irregular graph data in the spectral domain [14]. For
+the input data x with graph structure G, the GCN operator
+
+Authorized licensed use limited to: Cornell University Library. Downloaded on September 15,2020 at 08:45:39 UTC from IEEE Xplore.  Restrictions apply. 
+
+This article has been accepted for inclusion in a future issue of this journal. Content is final as presented, with the exception of pagination.
+
+GUO et al.: DYNAMIC GCN FOR TRAFFIC FORECASTING BASED ON LATENT NETWORK OF LAPLACE MATRIX ESTIMATION
+
+3
+
+gθ (cid:3) G can be given as follows,
+
+gθ (cid:3) G(x) = gθ (L)x = U gθ ((cid:4))U T x
+
+(1)
+
+represents
+
+where gθ
+the trainable parameter of GCN,
+L = U (cid:4)U T , U is the Fourier basis of G, and (cid:4) =
+di ag([λ1, . . . , λN ]) ∈ RN×N . Due to the computational com-
+plexity of decomposition of Laplace matrix L, Fast-GCN [28]
+was proposed as follows,
+
+gθ (cid:3) G(x) = gθ (L)x =
+
+M−1(cid:2)
+
+m=0
+
+θmCm( ˜L)x
+
+(2)
+
+where ˜L = 2
+L − IN , IN ∈ RN×N is an identity matrix,
+λmax
+λmax is the max eigenvalue of L, and M is the order of
+the Chebyshev Polynomials: Cm = 2 ˜LCm−1 − Cm−2 and
+C1 = ˜L, C0 = IN .
+
+Up to now, GCN has been successfully used in many
+applications, such as Semi-Supervised Classiﬁcation [29] and
+Spatial-Temporal Graph Convolution Network (STGCN) [30]
+for action recognition. In the trafﬁc forecasting ﬁeld, there
+are also many GCN based works, such as Graph Convolu-
+tional Recurrent Networks(GCRN) [31], Gated Spatial Tem-
+poral Graph Convolution Network (Gated-STGCN) [15] and
+ASTGCN [18] which utilizes spatial attention block to learn
+dynamic graph matrices, and we deﬁne these dynamic matrices
+as S(cid:3).
+
+C. Attention Mechanism
+
+Due to the capacity of learning wide range dependency
+among related signals, attention mechanism was introduced
+into Auto-encode, deep convolution, and generation network,
+and it had achieved successful applications [32], [33]. Then
+the self-attention was proposed to reveal the interdependency
+of input signals or features. Compared with the self-attention
+mechanism [33], another attention method was proposed to
+calculate the relationship of different axis of feature depen-
+dently by a weighted matrix [19]. Recently, Graph Attention
+Network (GAT) [34] ﬁrstly utilized the attention mechanism
+and Neural Network (NN) to adaptively learn the dynamic
+adjacent matrix of the graph and obtain high performance in
+the semi-supervised tasks.
+
+III. METHODOLOGY
+
+To implement the proposed DGCN with the framework
+in Fig.1(b), we give one unit of the network at a certain
+time concretely, as shown in Fig.2. For exploiting the effect
+of periodic time data on the forecasting task, different from
+other works which only use recent data, we sampled three
+different periods consisting our model’s input data, as shown
+in Fig.2, the recent-period data X Th , the daily-period data X Td
+which is the sampled data at the same forecasting moment in
+the past few days, the weekly-period data X Tw which is the
+sampled data at the same forecasting moment in the past few
+weeks.
+
+The extracting spatial-temporal feature structure of the
+the Laplace
+proposed DGCN has two main components:
+matrix latent network component (the right part with the
+
+Fig. 2. The proposed DGCN based on LMLN and Spatial-Temporal Unit,
+where ⊗ is the Hadamard Product, ˜L is scaled road network’s Laplace matrix,
+Lres is the global Laplace matrix, and L p is the estimated Laplace matrix
+from the current trafﬁc data.
+
+blue background of Fig.2) for estimating the Laplace matrix
+of Observed trafﬁc data; the GCN based trafﬁc forecasting
+component (the left part with the gray background of Fig.2)
+for capturing the spatial and temporal feature of Observed
+trafﬁc data by graph convolution. In the following, we will
+describe these two components in detail.
+
+A. Laplace Matrix Latent Network
+
+In LMLN, the scaled road network’s Laplace matrix ˜L is
+ﬁrstly processed by the global Laplace matrix learning Layer.
+Then the output global Laplace matrix is transferred to several
+Laplace matrix prediction units. At last, the dynamic Laplace
+matrix L p was transmitted to Graph Temporal Convolution
+Layer. As shown in Fig.3, the Laplace matrix prediction unit
+has three blocks: the feature sampling, the spatial attention,
+and LSTM unit. The main components and their blocks are
+presented as follows.
+
+1) Global Laplace Matrix Learning Layer: The global
+Laplace matrix learning layer has a similar function as the
+parameterized global-sharing Laplace matrix in [17], but it has
+a different construction manner. In [17], the authors utilized
+the mask method to generate the new Laplace matrix by
+L Mask = L par ∗ Lr , where L par ∈ RN×N is a train-
+able parameter matrix, ∗ is Hadamard Product, and Lr =
+(cid:3)
+1 L + IN ∈ RN×N is the r −hop of L. However, L Mask
+r
+suffers from the ﬂaw that the connections in the location
+of zero values in the Lr are omitted. For this purpose,
+we design a scaled 1-hop residual global Laplace matrix as
+
+Authorized licensed use limited to: Cornell University Library. Downloaded on September 15,2020 at 08:45:39 UTC from IEEE Xplore.  Restrictions apply. 
+
+This article has been accepted for inclusion in a future issue of this journal. Content is final as presented, with the exception of pagination.
+
+4
+
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS
+
+Fig. 3. The diagram of Laplace Matrix Prediction Unit.
+
+follow,
+
+Lres1 = L par + ˜L
+(cid:2)
+Dres ii =
+
+Lres1i j ,
+
+j
+
+i, j = 1, . . . , N
+
+Dres = di ag(1/(Dres ii + 0.0001)),
+Lres = Dres Lres1
+
+i = 1, . . . , N
+
+(3)
+
+where Lres1 is a parameterized Laplace matrix, Dres ii is the
+degree of node i , Dres is the inverse matrix of degree matrix
+with adding 0.0001 to avoid NaN problem, and Lres is the
+normalized global Laplace matrix.
+
+2) Feature Sampling: The input features are contacted by
+the recent, daily-period, and weekly-period observed trafﬁc
+data. If the original data are used as the input, there will
+be too much time and space complexity when the time
+length k ∗ T increases. Thus, we propose a feature sampling
+scheme to reduce the data dimension of the trafﬁc feature
+according to the importance of different time interval, i.e.
+the recent trafﬁc feature is more important than the other
+time-period features. Here, we fuse every T length features
+into one new feature except the recent T features, as shown
+in Fig.3. The changing of dimension for
+the sampling
+features can be represented by (F1, . . . , Ft , . . . , F(k−1)∗T ) ∈
+RN×(k−1)∗T ×F
+(F (cid:3)
+∈
+1
+RN×(k−1)×T ∗F . As the result, we have the new input
+feature for
+in form
+the Laplace matrix prediction unit
+(F (cid:3)
+∈
+of
+1
+RN×(k+T −1)×F . Then the ﬁrst k − 1 and the last T features
+will transfer to the two different spatial attentions respectively
+in Fig.3.
+
+(k−1), F(k−1)∗T +1, . . . , F(k)∗T )
+
+, . . . , F (cid:3)
+t
+
+, . . . , F (cid:3)
+t
+
+, . . . , F (cid:3)
+
+, . . . , F (cid:3)
+
+(k−1))
+
+→
+
+3) Spatial Attention: To construct the spatial relationship
+of the road network at every moment, we adopt the attention
+mechanism [33] to estimate the current period’s adjacent
+matrix (cid:7)Ld of the road network. So, if the input feature of
+the attention mechanism is the feature (cid:7)F(1:τ ) = (F1, . . . , Fτ ),
+as shown in the Fig.4, the calculation of the the attention
+process is given by,
+
+(cid:7)ˆLd = W1( (cid:7)F(1:τ ))(W2( (cid:7)F(1:τ )))T r
+(cid:7)Ld = Sigmoi d(
+
+(cid:7)ˆLd)
+
+(4)
+
+Fig. 4.
+the T r is Transpose and the ⊗ is the Matrix inner product.
+
+The structure of spatial attention mechanism, the R is Reshape,
+
+where W1(·) and W2(·) are embedding functions and T r is
+the matrix transpose. We use the matrix inner product as
+the estimate method of an adjacent matrix of the road net-
+work. To explore more relationship between nodes, we adopt
+multi-head attention structure, so we can obtain K dynamic
+matrices (cid:7)Li
+d
+
+, i = 1, . . . , K and get the mean of them.
+
+input
+
+input
+
+produces
+
+above,
+(k−1)) which
+
+as
+, . . . , F (cid:3)
+, . . . , F (cid:3)
+t
+
+In our model, owing to the
+describing
+
+futures being
+sampled
+is
+feature
+(F (cid:3)
+sequence
+1
+of adjacent matrices (Ld1, . . . , Ld(k−1)) ∈ R(k−1)×N×N ,
+(F(k−1)∗T +1, . . . , F(k)∗T )
+and
+are
+which produces the other sequence of adjacent matrices
+(Ldk, . . . , Ld(k+T −1)) ∈ R(T )×N×N . At
+last, we combine
+these two sequences as the output of spatial attention (cid:7)Ld =
+(Ld1, . . . , Ld(k−1), Ldk, . . . , Ld(k+T −1)) ∈ R(k+T −1)×N×N .
+
+features
+
+other
+
+one
+
+the
+
+the
+
+4) LSTM Unit: To explore the inner relation between the
+sequence of the adjacent matrices (cid:7)Ld , we adopt LSTM to learn
+the temporal correlation. The LSTM unit can be represented
+as follows,
+
+(cid:7)
+)
+
+(cid:6)
+
++ b f
+(cid:7)
++ bi
+(cid:6)
+
+)
++ bC
+
+(cid:7)
+)
+
+(cid:4)
+
+(cid:5)
+
+(cid:5)
+
+(cid:4)
+
+W f (
+(cid:5)
+Wi (
+(cid:4)
+
+ht −1, Ldt
+(cid:6)
+ht −1, Ldt
+
+ft = σ
+it = σ
+˜Ct = tanh
+WC (
+ht −1, Ldt
+Ct = ft ∗ Ct −1 + it ∗ ˜Ct
+(cid:6)
+(cid:5)
+ot = σ
+ht −1, Ldt
+Wo(
+ht = ot ∗ tanh (Ct )
+
+(cid:4)
+
++ bo
+
+(cid:7)
+
+)
+
+(5)
+
+where σ = sigmoi d, tanh are activation functions, Ldt ∈
+RN×N , t = 1, . . . , k + T − 1 is the input adjacent matrices,
+ht −1, ht ∈ RN×N are hidden features, thus
+∈
+RN×2N .
+ft , it , ot are forget gate, updating gate and out-
+put gate. Ct −1, Ct ∈ RN×N are the LSTM unit states,
+W f (·), Wi (·), Wo(·), WC (·) are Linear embedding functions,
+in which their parameters’ size is R2N×N , and b f , bi , bo, bC ∈
+RN are bias.
+
+ht −1, Ldt
+
+(cid:5)
+
+(cid:6)
+
+From LSTM, we get a future adjacent matrix hk+T −1 ∈
+RN×N . Combining with the global Laplace matrix Lres ,
+the output of the Laplace matrix prediction network L p can
+
+Authorized licensed use limited to: Cornell University Library. Downloaded on September 15,2020 at 08:45:39 UTC from IEEE Xplore.  Restrictions apply. 
+
+This article has been accepted for inclusion in a future issue of this journal. Content is final as presented, with the exception of pagination.
+
+GUO et al.: DYNAMIC GCN FOR TRAFFIC FORECASTING BASED ON LATENT NETWORK OF LAPLACE MATRIX ESTIMATION
+
+Algorithm 1 LMLN
+Input:
+The
+feature
+F1, . . . , Ft , . . . , Fk∗T ∈ RN×k∗T ×F ;
+
+current
+
+input
+
+(cid:7)F(1:k∗T )
+
+=
+
+from
+
+sampled
+
+(cid:7)F(1:k∗T ):
+=
+
+features
+(k−1), F(k−1)∗T +1, . . . , F(k)∗T )
+
+1: Update Lres by (3);
+the
+2: Get
+(F (cid:3)
+, . . . , F (cid:3)
+, . . . , F (cid:3)
+t
+1
+( (cid:7)F (cid:3)
+(1:(k−1)), (cid:7)F(((k−1)∗T +1):k∗T ));
+3: Get (Ld1, . . . , Ld(k−1)) from (cid:7)F (cid:3)
+4: Get (Ldk, . . . , Ld(k+T −1)) from (cid:7)F(((k−1)∗T +1):k∗T ) by (4);
+5: (cid:7)Ld = (Ld1, . . . , Ld(k−1), Ldk, . . . , Ld(k+T −1));
+6: for t-th Ldt in (cid:7)Ld , t = 0, . . . , k + T − 1 do
+7: Get ht by (5)
+8: end for
+9: Get h1, . . . , hk+T −1;
+10: Get L p by (6)
+11: return L p
+
+(1:(k−1)) by (4);
+
+be obtained by,
+
+Ld = hk+T −1
+L p = Ld ∗ Lres
+(6)
+L p ∈ RN×N will be transferred to graph temporal convolution
+layer of GCN component.
+
+From the above, the algorithm of LMLN can be summarized
+
+as follow:
+
+B. GCN Based Trafﬁc Forecasting
+
+As shown in Fig.2, GCN Based Trafﬁc Forecasting com-
+ponent has the following four blocks, which are contracted to
+extract the Spatial-Temporal feature of the input trafﬁc data.
+1) Temporal Convolution Layer (TCL): This temporal con-
+volution layer is designed to extract the high-dimensional
+local
+trafﬁc data.
+The temporal convolution on a segment of the trafﬁc data
+(cid:7)X(1:k∗T ) = (X1, . . . . . . , Xt , . . . . . . , Xk∗T ) ∈ RN×k∗T ×F can
+be represented as follows,
+
+information from the original
+
+temporal
+
+T C = (cid:8) (cid:3) (cid:7)X(1:k∗T ) = Conv1×ts
+
+(7)
+where Conv1×ts represents the 2-D convolution operator and
+its kernel size is 1 × ts .
+
+( (cid:7)X(1:k∗T ))
+
+2) Graph Temporal Convolution Layer (GTCL): Usually,
+in the trafﬁc forecasting domain, this layer can be realized
+based on the GCN [15], [18], for example, one can stack
+GCN and TCL as a Spatial-Temporal Block to abstract the
+space-time feature T C from the output of TCL as follow:
+(cid:7)Fea1 = gθ (cid:3) G(T C)
+(cid:7)Fea2 = (cid:8) (cid:3) Relu(
+
+(cid:7)Fea1)
+
+(8)
+
+However, there are too many computations in the above
+model. Thus, we propose to integrate these two functions as
+a single GTCL by replacing the GCN operation gθ with (cid:8):
+
+(cid:8) (cid:3) G(T C) =
+
+M−1(cid:2)
+
+m=0
+
+(cid:8)m (cid:3) (Cm( ˜L)T C)
+
+5
+
+=
+
+Algorithm 2 GCN Based Trafﬁc Forecasting Component
+Input:
+The
+input
+(X1, . . . . . . , Xt , . . . . . . , Xk∗T ) ∈ RN×k∗T ×F ;
+
+(cid:7)X(1:k∗T )
+
+current
+
+feature
+
+1: T C = (cid:8) (cid:3) (cid:7)X(1:k∗T );
+2: Get dynamic Laplace matrix L p from T C by Algorithm.1;
+3: GC = (cid:8)gat e (cid:3) L p(T C);
+4: T A = T att (GC);
+5: (cid:7)F 1
+6: return (cid:7)F 1
+
+(1:k∗T ) = Bathc_nor m(Leaky_Relu(T A));
+
+(1:k∗T )
+
+Additionally, we further design a gate mechanism [35] to
+explore the local temporal feature as follows,
+
+( (cid:7)β1, (cid:7)β2) = spli t ((cid:8) (cid:3) G(T C))
+
+(cid:8)gat e (cid:3) G(T C) = sigmoi d( (cid:7)β1) ∗ Leaky_Relu( (cid:7)β2)
+
+(10)
+
+where spli t represents the operator of equally dividing the
+input feature; sigmoi d and Leaky_Relu are activation func-
+tions. So we obtain the ﬁnal result of GTCL based on the
+dynamic Laplace matrix L p as follows,
+
+( (cid:7)β1, (cid:7)β2) = spli t ((cid:8) (cid:3) L p(T C))
+GC = (cid:8)gat e (cid:3) L p(T C)
+
+= sigmoi d( (cid:7)β1) ∗ Leaky_Relu( (cid:7)β2)
+
+(11)
+
+3) Temporal Attention: Except for TCL and GTCL, we also
+need a method to explore the long-range time relation, so we
+adopt the Temporal Attention in [19] to adaptively capture the
+large scale temporal correlation of trafﬁc data.
+
+E = Veσ ((GC)T r U1)U2((GC)U3)T r + be)
+(cid:3)
+i, j
+
+ex p(Ei, j + Mas)
+k∗T
+j =1 ex p(Ei, j + Mas)
+
+(cid:8)
+
+=
+
+E
+
+(12)
+
+where Ve, be ∈ Rk∗T ×k∗T , U1 ∈ RN , U2 ∈ RF ×N , U3 ∈ RF
+are trainable parameters, and Mas ∈ Rk∗T ×k∗T is a mask
+matrix for keeping the dependence between the discontinuous
+periods of time and making the value of relationship E (cid:3)
+∈
+i, j
+Rk∗T ×k∗T between discontinuous time periods as zero. Thus,
+in GCN Based Trafﬁc Forecasting, we denote the temporal
+attention as follow,
+
+T A = T att (GC)
+= E (cid:3)GC
+
+(13)
+
+4) Batch_norm(Leaky_Relu(.)): This part is the activation
+function of GCN Based Trafﬁc Forecasting, and we utilize
+Batch_nor m(Leaky_Relu(.)) to activate the output feature
+of the Temporal Attention as follows,
+
+(cid:7)F 1
+(1:k∗T ) = Bathc_nor m(Leaky_Relu(T A))
+
+(14)
+
+(9)
+
+From the above, we summary the algorithm of GCN based
+trafﬁc forecasting component as the following Algorithm.2.
+
+Authorized licensed use limited to: Cornell University Library. Downloaded on September 15,2020 at 08:45:39 UTC from IEEE Xplore.  Restrictions apply. 
+
+This article has been accepted for inclusion in a future issue of this journal. Content is final as presented, with the exception of pagination.
+
+6
+
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS
+
+5) Loss Function: After
+
+the above DGCN processing,
+we obtain the output spatial and temporal features. From this,
+we establish the output layer and construct the model’s loss
+function. As shown in Fig.2, the recent data is contiguous and
+its length is i ∗ T , and the daily-period and weekly-period
+data are sampled and cut up by k − i unit which length is
+T , so this k − i input unit is discontinued in the time axis.
+Therefore, we design a special output layer: Conv1×i to deal
+with the recent data, Conv1×1 to reﬂect the k − i feature unit
+dependently in the daily-period and weekly-period. Finally,
+we sum all convolution output as our model’s pr edi cti on
+and adopt the l2_loss to measure the difference between the
+prediction and its ground truth to obtain the model’s loss
+function as follows,
+
+loss = l2_loss( pr edi cti on, tr uth)
+
+(15)
+
+where l2_loss( pr edi cti on, tr uth) denotes the loss of the
+model’s prediction and truth.
+
+IV. EXPERIMENT SETTINGS AND RESULTS ANALYSIS
+
+A. Experiment Settings
+
+1) Datasets: In our experiments, we use three real-world
+trafﬁc datasets: PeMSD4, PeMSD8, and PHILADELPHIA
+for evaluating the proposed method. The former two are
+collected from California highway by the Caltrans Perfor-
+mance Measurement System(PeMS) [36] in the rate of one
+sampling every 30 seconds [18]. Here, we resample these
+datasets with one sample per 5 minutes. PeMSD4 has traf-
+ﬁc data of 307 road segments recorded from January to
+February in 2018. PeMSD8 has trafﬁc data of 170 road
+segments collected from July to August in 2016. Both of
+them contain three trafﬁc measurements,
+trafﬁc ﬂow,
+average speed, and road occupancy, thus F = 3. In our
+model, we will forecast trafﬁc ﬂow as output for the two
+datasets. PHILADELPHIA [37] is a speed dataset (F = 1)
+sampled every 5 minutes at the city center of Philadelphia
+in 2016 summer. It has 397 road segments with 35 highway
+segments, so it has urban trafﬁc features different from the
+former two datasets. As there is one sample per 5 minutes,
+i.e. each hour has 12 data samples for all the datasets, we set
+T = 12. We also divide three datasets into three parts: training-
+set, validation-set, and test-set with the ratio of 60%, 20%, and
+20% in the time direction. The details of three parts of the three
+datasets as shown in Table.I. In our experiments, we select the
+best model’s parameter on the validation-set and evaluate the
+proposed model on the test-set. In addition, the data samples
+of each road segment are normalized by x (cid:3) = x−mean(x)
+
+i.e.
+
+.
+
+2) Parameters Setting: The proposed model is implemented
+by Pytorch 1.2.0 on a virtual workstation with a 24G memory
+Nvidia RTX Titan GPU. We set
+the order of Chebyshev
+polynomial M = 3 in the GTCL according to the previous
+works [18], [29]. The size of the temporal kernel ts = 3.
+The head-number of multi-head attention K = 4. Similar
+to ASTGCN,
+the size of the output feature GCN Based
+Trafﬁc Forecasting is 64. The lengths of the three trafﬁc data
+segments are also set same as that of ASTGCN, i.e. Th = 24,
+Td = 12, Tw = 24. The forecasting time interval Tp = 12,
+
+st d(x)
+
+THE DETAILS OF DATA-SET SEGMENTATION ON THREE DATASETS
+
+TABLE I
+
+i.e. one hour in the future. Thus, we adopt 60 samples to
+train and predict 12 samples in the next one hour. In this
+the batch size is 8, and we use l2_loss as our
+paper,
+model’s loss function, then Adam Optimization is utilized. The
+original learning rate is 0.0005 with decay rates 0.92 every
+epoch. We train 40 epochs in the training phase.
+
+3) Comparison Methods: The proposed method is com-
+pared with seven trafﬁc forecasting methods: HA, ARIMA,
+LSTM, GRU, GCRN, Gated-STGCN, ASTGCN. In these
+methods, except for ASTGCN using the sampled trafﬁc data
+as input feature, the other methods use recent data for fore-
+casting. For estimating the impact of different input, we also
+make a version of our model using the recent data, denoted
+by DGCN_R. To further evaluate the efﬁciency of different
+Laplace matrix for GCN, especially GAT [34], we compare
+our method with four GCN based methods: ASTGCN [18],
+in which the attention Laplace matrix is used; DGCN_Mask,
+a revised version of our model using the mask Laplace matrix;
+DGCN_Res, a revised version of our model using the residual
+Laplace matrix; and DGCN_GAT, a method by replacing the
+spatial feature layer-GTCL of our model with GAT and so
+being comparable with the others.
+
+The performances of all methods are measured by two
+i.e. Root Mean Square Error (RMSE) and Mean
+
+metrics,
+Absolute Error(MAE), deﬁned as follow:
+
+|(Xi j − ˆXi j )|
+
+(cid:8)Tp
+i=1
+
+M AE =
+
+(cid:8)
+
+(cid:9)
+(cid:10)
+(cid:10)
+(cid:11)
+
+(cid:8)Tp
+i=1
+
+RM S E =
+
+N
+j =1
+Tp ∗ N
+(cid:8)
+
+(Xi j − ˆXi j )2
+
+N
+j =1
+Tp ∗ N
+
+(16)
+
+B. Results
+
+The average one-hour trafﬁc forecasting accuracies on
+PeMSD4, PeMSD8, PHILADELPHIA of different methods
+are shown in Table.II. It is shown that our proposed DGCN
+has the best performance compared with other methods in
+all metrics. The traditional HA and ARIMA have the worst
+results. Compared with the two baseline methods, the tem-
+poral neural network based methods, LSTM and GRU have
+better results. Then, the GCN based methods, GCRN, and
+Gated-STGCN have obvious improvements in contrast to the
+above methods, which should be beneﬁted from the abilities
+to capture spatial and temporal features of trafﬁc data. The
+close related method of our method, ASTGCN, has the third
+position in all metrics, which is explained that its adaptive and
+dynamic graph Laplace matrix by the mask operator on the
+empirical Laplace matrix brings the results. Compared with
+other methods, our method achieves at least 8 percent on two
+
+Authorized licensed use limited to: Cornell University Library. Downloaded on September 15,2020 at 08:45:39 UTC from IEEE Xplore.  Restrictions apply. 
+
+This article has been accepted for inclusion in a future issue of this journal. Content is final as presented, with the exception of pagination.
+
+GUO et al.: DYNAMIC GCN FOR TRAFFIC FORECASTING BASED ON LATENT NETWORK OF LAPLACE MATRIX ESTIMATION
+
+7
+
+TABLE II
+
+THE TRAFFIC FORECASTING RESULTS OF DIFFERENT METHODS
+ON PEMSD4, PEMSD8, AND PHILADELPHIA
+
+TABLE III
+THE TRAFFIC FORECASTING MEAN RESULTS OF FOUR
+METHODS ON PEMSD4 AND PEMSD8
+
+highway datasets(PeMSD4 and PeMSD8) and 5 percent on
+city road dataset(PHILADELPHIA) compared with ASTGCN,
+which is considered a signiﬁcant improvement. We think this
+is the result of our latent network of Laplace matrix having
+the advantage of fully revealing the intrinsic relations in the
+trafﬁc data. Especially, DGCN_R obtain the second position
+in all metrics, this further conﬁrms that LMLN can exploit a
+better dynamic spatial relation of the road network. Compared
+with DGCN, it also veriﬁes that the input of more periodic data
+can obtain better prediction accuracy.
+
+To further analyze the results of different forecasting time,
+we compare the forecasting results of ASTGCN and DGCN on
+the 12 different future times. As shown in Fig.5, In all datasets,
+DGCN is better than ASTGCN in all forecasting time sizes on
+both the two metrics, and this further shows that our method
+is robust on different prediction tasks and different forecasting
+time.
+
+C. The Impact of Different Laplace Matrices for GCN
+
+For GCN based methods, it is critical to construct a proper
+graph Laplace matrix for the graph convolution operator. The
+ideal Laplace matrix should reveal the intrinsic relation of
+the trafﬁc data. To evaluate the impact of different Laplace
+matrices, we do trafﬁc forecasting experiments by the GCN
+based methods with different Laplace matrices, ASTGCN,
+DGCN_Mask, DGCN_Res, DGCN_GAT, and our DGCN
+method. The results are shown in Table.III. Except for the
+forecasting accuracies, the training time (one epoch’s training
+time) and the test time(the average test time of one sample
+in test-set) are reported in Table.III. It is shown that the two
+mask methods, i.e. ASTGCN and DGCN_Mask get the worse
+results. It is explained that the mask Laplace matrix has a
+limitation of representing the complicated spatial correlation of
+
+Fig. 5. Results of ASTGCN and DGCN for different forecasting time.
+
+the trafﬁc data, compared to ASTGCN, DGCN_Mask get bet-
+ter results, this further veriﬁes the effectiveness of our model
+despite without using the dynamic matrices. DGCN_Res out-
+performs ASTGCN and DGCN_Mask inaccuracies with little
+increasing of training time. This owns to the replacement of
+the Global-optimized-residual Laplace matrix with the empir-
+ical Laplace matrix. It also veriﬁes that the global Laplace
+matrix learning layer in our method is necessary. Our DGCN
+model obtains the best accuracies compared with the other
+four methods. It is conducted that LMLN can construct a
+valid dynamic graph Laplace matrices sequence for the GCN
+network. Particularly, our method outperforms DGCN_GAT
+
+Authorized licensed use limited to: Cornell University Library. Downloaded on September 15,2020 at 08:45:39 UTC from IEEE Xplore.  Restrictions apply. 
+
+This article has been accepted for inclusion in a future issue of this journal. Content is final as presented, with the exception of pagination.
+
+8
+
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS
+
+Fig. 6. The estimated Laplace matrices and its residual matrices of ASTGCN and DGCN on three datasets in three certain time intervals.
+
+THE VARIANCES OF THE DYNAMIC LAPLACE MATRICES AND THE TRAFFIC DATA OF THE THREE DATASETS
+
+TABLE IV
+
+in both MAE and RMSE, which means the GTCL layer is
+better than the original graph attention mechanism. However,
+due to the added complexity of the Laplace matrix latent
+network, the training time and the test time of our method
+increase compared with the other methods. But the difference
+is acceptable. As shown in the last column in Table.III,
+the impact of the difference of test time is negligible for
+general real time application.
+
+To intuitively show the dynamic Laplace matrices con-
+structed by our method, we draw the residual matrices of the
+dynamic Laplace matrices sequence and compare it with that
+of ASTGCN. As shown in Fig.6, we can see that the residual
+matrices become more obvious with time interval increasing
+on all datasets. It is reasonable because the difference in
+the trafﬁc data will become larger when the time interval
+increasing. This also veriﬁed that the proposed method can
+capture the changing of the spatial and temporal correlation
+of the trafﬁc data. For the close related method, ASTGCN,
+though it also estimates the Laplace matrix adaptively by
+the demonstration of its residual
+an attention mechanism,
+matrices sequence does not have obvious changes, which
+illustrates the ability of its representing of
+the dynamic
+Laplace matrices is limited. Thus, DGCN can further explore
+the underlying changing of Laplace matrices compared to
+ASTGCN.
+
+At last, for further exploiting the difference on dynamic
+Laplace matrices between ASTGCN and DGCN, we ﬁrst
+calculate the variances of each row in these matrices, which
+represents the variety of the magnitude linking to other nodes
+of the current node, and a bigger value means there are more
+different patterns of links for the current node, i.e. the links are
+non-uniform and selective. Then the mean of the variances of
+all rows is calculated and shown in Table.IV, which reﬂects the
+whole variety of links of all nodes in the matrices. However,
+our latent network aims to reveal
+the variety of Laplace
+matrices caused by the observed dynamic trafﬁc data. So we
+also compute the corresponding variances of the original trafﬁc
+data (we construct the road nodes’ correlation matrices as
+dynamic graph matrices), as shown in the last three columns
+in Table.IV. It is indicated that the variances of the trafﬁc
+data at the beginning time (t1) are quite large for the three
+datasets, and even its resident matrices at t8 − t1, t16 − t1
+are also considerable, which means the trafﬁc data have a
+big variety for different nodes at different time. Under this
+situation, the variances of our dynamic Laplace matrices are
+consistent with that of trafﬁc data and larger than that of
+ASTGCN, as shown in Table.IV. This further conﬁrms that
+our dynamic Laplace matrices are more powerful to reveal
+the latent spatial-temporal relationship among the observed
+trafﬁc dynamic data from different road segments than that
+
+Authorized licensed use limited to: Cornell University Library. Downloaded on September 15,2020 at 08:45:39 UTC from IEEE Xplore.  Restrictions apply. 
+
+This article has been accepted for inclusion in a future issue of this journal. Content is final as presented, with the exception of pagination.
+
+GUO et al.: DYNAMIC GCN FOR TRAFFIC FORECASTING BASED ON LATENT NETWORK OF LAPLACE MATRIX ESTIMATION
+
+9
+
+of ASTGCN, which ﬁnally contributes to the superior trafﬁc
+forecasting performance of our DGCN method.
+
+V. CONCLUSION
+
+In this paper, a novel graph convolution network, namely
+DGCN, was proposed to forecast trafﬁc data. Different from
+most of the current GCN based methods, which generally
+used empirical graph Laplace matrix in graph convolution,
+we propose a latent network to estimate the dynamic Laplace
+matrix adaptively, which is veriﬁed with good ability to extract
+spatial-temporal correlation of the trafﬁc data. The proposed
+method is evaluated on three real-world trafﬁc data. The
+experimental results show that the proposed method outper-
+forms the state of the art trafﬁc forecasting methods. However,
+considering the complexity of DGCN, especially LMLN, if we
+want to forecast large scale road network, a fast and efﬁcient
+method to dynamically abstract Laplace matrices is a critical
+and interesting work in the future.
+
+REFERENCES
+
+[1] Y. Wang and M. Papageorgiou, “Real-time freeway trafﬁc state estima-
+tion based on extended Kalman ﬁlter: A general approach,” Transp. Res.
+B, Methodol., vol. 39, no. 2, pp. 141–167, Feb. 2005.
+
+[2] Y. Wang, M. Papageorgiou, and A. Messmer, “RENAISSANCE—
+A uniﬁed macroscopic model-based approach to real-time freeway
+network trafﬁc surveillance,” Transp. Res. C, Emerg. Technol., vol. 14,
+no. 3, pp. 190–212, Jun. 2006.
+
+[3] C. P. I. J. van Hinsbergen, T. Schreiter, F. S. Zuurbier, J. W. C. van Lint,
+and H. J. van Zuylen, “Localized extended Kalman ﬁlter for scalable
+real-time trafﬁc state estimation,” IEEE Trans. Intell. Transp. Syst.,
+vol. 13, no. 1, pp. 385–394, Mar. 2012.
+
+[4] M. S. Ahmed and A. R. Cook, “Analysis of freeway trafﬁc time-series
+data by using box–jenkins techniques,” Transp. Res. Rec., vol. 722,
+pp. 1–9, Apr. 1979.
+
+[5] B. L. Smith, B. M. Williams, and R. Keith Oswald, “Comparison
+of parametric and nonparametric models for trafﬁc ﬂow forecasting,”
+Transp. Res. C, Emerg. Technol., vol. 10, no. 4, pp. 303–321, Aug. 2002.
+[6] C. Antoniou, H. N. Koutsopoulos, and G. Yannis, “Dynamic data-driven
+local trafﬁc state estimation and prediction,” Transp. Res. C, Emerg.
+Technol., vol. 34, pp. 89–107, Sep. 2013.
+
+[7] P. Cai, Y. Wang, G. Lu, P. Chen, C. Ding, and J. Sun, “A spatiotemporal
+correlative k-nearest neighbor model for short-term trafﬁc multistep
+forecasting,” Transp. Res. C, Emerg. Technol., vol. 62, pp. 21–34,
+Jan. 2016.
+
+[8] C.-H. Wu, J.-M. Ho, and D. T. Lee, “Travel-time prediction with support
+vector regression,” IEEE Trans. Intell. Transp. Syst., vol. 5, no. 4,
+pp. 276–281, Dec. 2004.
+
+[9] E. S. Yu and C. Y. R. Chen, “Trafﬁc prediction using neural networks,”
+
+in Proc. IEEE Global Telecommun. Conf., 1993, pp. 991–995.
+
+[10] C. Zhou and P. Nelson, “Predicting trafﬁc congestion using recurrent
+nueral network,” in World Congr. Intell. Transp. Syst., Dec. 2002,
+pp. 1–9.
+
+[11] S. Yang and S. Qian, “Understanding and predicting travel time with
+spatio-temporal features of network trafﬁc ﬂow, weather and incidents,”
+IEEE Intell. Transp. Syst. Mag., vol. 11, no. 3, pp. 12–28, Dec. 2019.
+[12] J. W. C. van Lint, S. P. Hoogendoorn, and H. J. van Zuylen, “Accurate
+freeway travel time prediction with state-space neural networks under
+missing data,” Transp. Res. Part C: Emerg. Technol., vol. 13, nos. 5–6,
+pp. 347–369, Oct. 2005.
+
+[13] J. Zhang, Y. Zheng, and D. Qi, “Deep spatio-temporal residual networks
+for city wide crowd ﬂows prediction,” in Proc. Assoc. Advance Artif.
+Intell. Conf. (AAAI), 2017, pp. 1–8.
+
+[14] J. Bruna, W. Zaremba, A. Szalm, and Y. LeCun, “Spectral networks and
+deep locally connected networks on graphs,” in Proc. Int. Conf. Learn.
+Represent. (ICLR), 2014, pp. 1–8.
+
+[15] B. Yu, H. Yin, and Z. Zhu, “Spatio-temporal graph convolutional
+networks: A deep learning framework for trafﬁc forecasting,” in Proc.
+Int. Joint Conf. Artif. Intell., Jul. 2018, pp. 1–9.
+
+[16] Y. Li, R. Yu, C. Shahabi, and Y. Liu, “Diffusion convolutional recurrent
+neural network: Data-driven trafﬁc forecasting,” in Int. Conf. Learn.
+Represent. (ICLR), 2018, pp. 1–5.
+
+[17] Z. Zhang, M. Li, X. Lin, Y. Wang, and F. He, “Multistep speed prediction
+on trafﬁc networks: A deep learning approach considering spatio-
+temporal dependencies,” Transp. Res. C, Emerg. Technol., vol. 105,
+pp. 297–322, Aug. 2019.
+
+[18] S. Guo, Y. Lin, N. Feng, C. Song, and H. Wan, “Attention based spatial-
+temporal graph convolutional networks for trafﬁc ﬂow forecasting,” in
+Proc. Assoc. Advance Artif. Intell. Conf.(AAAI), 2019, pp. 922–933.
+[19] X. Feng, J. Guo, B. Qin, T. Liu, and Y. Liu, “Effective deep memory
+networks for distant supervised relation extraction,” in Proc. 26th Int.
+Joint Conf. Artif. Intell., Aug. 2017, pp. 4002–4008.
+
+[20] M. Ben-Akiva, M. Bierlaire, H. Koutsopoulos, and R. Mishalani,
+“Dynamit: A simulation-based system for trafﬁc prediction,” in Proc.
+DACCORD Short Term Forecasting Workshop, Delft, The Netherlands,
+1998, pp. 1–9.
+
+[21] H. S. Mahmassani, X. Fei, S. Eisenman, X. Zhou, and X. Qin,
+Dynasmart-x Eval. for Real-Time TMC Application: Chart Test Bed.
+College Park, MD, USA: Univ. of Maryland, 2005.
+
+[22] A. Nantes, D. Ngoduy, A. Bhaskar, M. Miska, and E. Chung, “Real-
+time trafﬁc state estimation in urban corridors from heterogeneous data,”
+Transp. Res. C, Emerg. Technol., vol. 66, pp. 99–118, May 2016.
+[23] M. A. Hearst, S. T. Dumais, E. Osman, J. Platt, and B. Scholkopf,
+“Support vector machines,” IEEE Intell. Syst. Appl., vol. 13, no. 4,
+pp. 18–28, Jul./Aug. 2008.
+
+[24] Y. Lv, Y. Duan, W. Kang, Z. Li, and F.-Y. Wang, “Trafﬁc ﬂow prediction
+with big data: A deep learning approach,” IEEE Trans. Intell. Transp.
+Syst., vol. 16, no. 2, pp. 865–873, Apr. 2015.
+
+[25] Z. Cui, R. Ke, and Y. Wang, “Deep stacked bidirectional and unidi-
+rectional lstm recurrent neural network for network-wide trafﬁc speed
+prediction,” in 6th Int. Workshop Urban Comput., 2016, pp. 1–4.
+[26] A. Fred Agarap, “A neural network architecture combining gated
+recurrent unit (GRU) and support vector machine (SVM) for intrusion
+detection in network trafﬁc data,” 2017, arXiv:1709.03082. [Online].
+Available: http://arxiv.org/abs/1709.03082
+
+[27] Y. Liang, S. Ke, J. Zhang, X. Yi, and Y. Zheng, “GeoMAN: Multi-level
+attention networks for geo-sensory time series prediction,” in Proc. Int.
+Joint Conf. Artif. Intell., Jul. 2018, pp. 3428–3434.
+
+[28] M. Defferrard, X. Bresson, and P. Vandergheynst, “Convolution neural
+networks on graphs with fast localized spectral ﬁltering,” in Proc. Adv.
+Neural Inf. Process. Syst. (NIPS), 2016, pp. 3842–3852.
+
+[29] T. N. Kipf and M. Welling, “Semi-supervised classiﬁcation with graph
+convolution networks,” in Proc. Int. Conf. Learn. Represent. (ICLR),
+2017, pp. 1–5.
+
+[30] X. Zhang, C. Xu, and D. Tao, “Context aware graph convolution for
+skeleton-based action recognition,” in Proc. IEEE/CVF Conf. Comput.
+Vis. Pattern Recognit. (CVPR), Jun. 2020, pp. 14333–14342.
+
+[31] Y. Seo, M. Defferrard, P. Vandergheynst, and X. Bresson, “Structured
+sequence modeling with graph convolutional recurrent networks,” in
+Proc. Int. Conf. Learn. Represent. (ICLR), 2017, pp. 362–373.
+
+[32] H. Zhang, I. Goodfellow, D. Metaxas, and A. Odena, “Self-attention
+generative adversarial networks,” 2018, arXiv:1805.08318. [Online].
+Available: http://arxiv.org/abs/1805.08318
+
+[33] A. Vaswani et al., “Attention is all you need,” in Proc. Adv. Neural Inf.
+
+Process. Systems(NIPS), 2017, pp. 5998–6008.
+
+[34] P. Velickovic, G. Cucurull, A. Casanova, A. Romero, P. Lio, and
+Y. Bengio, “Graph attention networks,” in Proc. Int. Conf. Learn.
+Represent. (ICLR), 2018, pp. 1–5.
+
+[35] J. Gehring, M. Auli, D. Grangier, D. Yarats, and Y. N. Dauphin, “Con-
+volutional sequence to sequence learning,” 2017, arXiv:1705.03122.
+[Online]. Available: http://arxiv.org/abs/1705.03122
+
+[36] C. Chen, K. Petty, A. Skabardonis, P. Varaiya, and Z. Jia, “Freeway
+performance measurement system: Mining loop detector data,” Transp.
+Res. Rec., J. Transp. Res. Board, vol. 1748, no. 1, pp. 96–102, Jan. 2001.
+[37] W. Ma and S. Qian, “Dynamic network analysis, trafﬁc prediction and
+optimal dynamic messages for the philadelphia region,” Pennsylvania
+Dept. Transp., Wellsboro, PA, USA, Tech. Rep. FHWA-PA-2016-014-
+CMU WO 04, 2016.
+
+Kan Guo received the bachelor’s degree in math-
+ematics and physics from the Beijing University
+of Posts and Telecommunications, Beijing, China,
+in 2015. He is currently pursuing the Ph.D. degree
+in control science and engineering with the Beijing
+Key Laboratory of Multimedia and Intelligent Soft-
+ware Technology, Faculty of Information Technol-
+ogy, Beijing University of Technology, Beijing. His
+research interests include intelligent transportation
+systems, deep learning, and artiﬁcial intelligence.
+
+Authorized licensed use limited to: Cornell University Library. Downloaded on September 15,2020 at 08:45:39 UTC from IEEE Xplore.  Restrictions apply. 
+
+This article has been accepted for inclusion in a future issue of this journal. Content is final as presented, with the exception of pagination.
+
+10
+
+IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS
+
+Yongli Hu (Member, IEEE) received the Ph.D.
+degree from the Beijing University of Technology,
+China, in 2005. He is currently a Professor with the
+Faculty of Information Technology, Beijing Univer-
+sity of Technology. He is also a Researcher with the
+Beijing Key Laboratory of Multimedia and Intel-
+ligent Software Technology, and with the Beijing
+Artiﬁcial Intelligence Institute. His research interests
+include computer graphics, pattern recognition, and
+multimedia technology.
+
+Zhen (Sean) Qian received the Ph.D. degree in
+civil engineering from the University of Califor-
+nia at Davis in 2011. He was a Post-Doctoral
+Researcher with the Department of Civil and Envi-
+ronmental Engineering, Stanford University, from
+2011 to 2013. He directs the Mobility Data Analytics
+Center, Carnegie Mellon University. His research
+interests include intelligent
+transportation systems
+and dynamic large-scale network modeling.
+
+Yanfeng Sun (Member, IEEE) received the Ph.D.
+degree from the Dalian University of Technology in
+1993. She is currently a Professor with the Faculty of
+Information Technology, Beijing University of Tech-
+nology, Beijing, China. She is also a Researcher with
+the Beijing Key Laboratory of Multimedia and Intel-
+ligent Software Technology, and with the Beijing
+Artiﬁcial Intelligence Institute. Her research interests
+include machine learning and image processing. She
+is a member of the China Computer Federation.
+
+Junbin Gao (Member, IEEE) received the B.Sc.
+degree in computational mathematics
+from the
+Huazhong University of Science and Technology
+(HUST), China, in 1982, and the Ph.D. degree from
+the Dalian University of Technology, China, in 1991.
+He is currently a Professor of big data analytics
+with The University of Sydney Business School,
+The University of Sydney. Prior to this, he was
+a Professor in computer science with the School
+of Computing and Mathematics, Charles Sturt Uni-
+versity, Australia. He was a Senior Lecturer and a
+Lecturer in computer science with the University of New England, Australia,
+from 2001 to 2005. From 1982 to 2001, he was an Associate Lecturer,
+a Lecturer, an Associate Professor, and a Professor with the Department of
+Mathematics, HUST. His main research interests include machine learning,
+data analytics, Bayesian learning and inference, and image analysis.
+
+Baocai Yin (Member, IEEE) received the M.S.
+and Ph.D. degrees in computational mathematics
+from the Dalian University of Technology, Dalian,
+China, in 1988 and 1993, respectively. He is cur-
+rently a Director with the Beijing Key Laboratory
+of Multimedia and Intelligent Software Technology
+and with the Beijing Artiﬁcial Intelligence Insti-
+tute. He has authored or coauthored more than 200
+academic articles in prestigious international jour-
+nals, including the IEEE TRANSACTIONS ON PAT-
+TERN ANALYSIS AND MACHINE INTELLIGENCE,
+the IEEE TRANSACTIONS ON MULTIMEDIA, the IEEE TRANSACTIONS ON
+IMAGE PROCESSING, the IEEE TRANSACTIONS ON NEURAL NETWORKS
+AND LEARNING SYSTEMS, the IEEE TRANSACTIONS ON CYBERNETICS,
+and the IEEE TRANSACTIONS ON CIRCUITS AND SYSTEMS FOR VIDEO
+TECHNOLOGY, and top-level conferences, such as CVPR, IAAA, INFOCOM,
+IJCAI, and ACM SIGGRAPH. His research interests include multimedia,
+image processing, computer vision, and pattern recognition.
+
+Authorized licensed use limited to: Cornell University Library. Downloaded on September 15,2020 at 08:45:39 UTC from IEEE Xplore.  Restrictions apply. 
+
