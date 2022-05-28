@@ -18,9 +18,12 @@ $TF-IDF_{t_i} = TF_{t_i} \* IDF_{t_i}$
 ## 文件夹结构
 ```
 |-Textminer.ipynb(文本挖掘程序)
+|
 |-pdf_folder(储存文献pdf)
+|   |
 |   |-pdf.pdf
 |-pdf_text_folder(储存文献文本内容)
+|   |   
 |   |-pdf.txt
 ```
 
