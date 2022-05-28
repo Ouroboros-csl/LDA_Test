@@ -1,9 +1,9 @@
 ## 文献计量方法
 ## TF-IDF
 
-$TF_{\ t_i} = \cfrac{Freq_{\ t_i}}{\sum_i{Freq_{\ t_i}}}$
+$TF_{\ t_i} = {Freq_{\ t_i}}/\ {\sum_i{Freq_{\ t_i}}}$
 
-$IDF_{\ t_i} = \cfrac{|D|}{\sum_j{\ I(\ t_i in \ D_j)} + 1}$
+$IDF_{\ t_i} = {|D|}/\ {\sum_j{\ I(\ t_i\ \in\  D_j)} + 1}$
 
 $TF-IDF_{\ t_i} = TF_{\ t_i} \* IDF_{\ t_i}$
 
